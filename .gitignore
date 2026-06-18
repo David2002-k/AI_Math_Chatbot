@@ -1,0 +1,22 @@
+# Environnement
+.env
+venv/
+__pycache__/
+*.pyc
+
+# Base de données
+*.db
+
+# Fichiers uploadés par les utilisateurs
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Node (si utilisé pour des outils)
+node_modules/
+
+# Système
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/

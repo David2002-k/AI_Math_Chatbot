@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="sombre">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Math Chatbot</title>
+
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Icônes Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
+  <!-- KaTeX — rendu des formules mathématiques -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+
+  <!-- Notre feuille de style -->
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+
+  <div class="d-flex" id="app-wrapper">
+
+    <!-- ════════════════════════════════════════
+         ZONE 1 — BARRE LATÉRALE (historique)
+    ════════════════════════════════════════ -->
+    <aside class="sidebar d-flex flex-column">
+
+      <!-- Bouton nouvelle conversation -->
+      <div class="p-3">
+        <button class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2" id="btn-nouveau-chat">
+          <i class="bi bi-plus-lg"></i> Nouvelle conversation
+        </button>
+      </div>
+
+      <!-- Barre de recherche -->
+      <div class="px-3 pb-2">
+        <div class="input-group">
+          <span class="input-group-text bg-transparent border-secondary">
+            <i class="bi bi-search"></i>
+          </span>
+          <input type="text" class="form-control" id="recherche-chat" placeholder="Rechercher une conversation...">
+        </div>
+      </div>
+
+      <!-- Liste des conversations — générée dynamiquement par chat.js -->
+      <div class="flex-grow-1 overflow-auto px-2" id="liste-chats">
+        <div class="text-secondary small px-2">Chargement de l'historique...</div>
+      </div>
+
+      <!-- Pied de la barre latérale -->
+      <div class="p-3 border-top border-secondary d-flex align-items-center justify-content-between">
+        <a href="pages/connexion.html" class="d-flex align-items-center gap-2 text-decoration-none" style="color: inherit;">
+          <i class="bi bi-person-circle fs-4"></i>
+          <span class="small">Mon compte</span>
+        </a>
+        <a href="pages/parametres.html" style="color: inherit;">
+          <i class="bi bi-gear" id="btn-parametres" role="button" title="Paramètres"></i>
+        </a>
+      </div>
+    </aside>
+
+
+    <!-- ════════════════════════════════════════
+         ZONE 2 + 3 — CHAT PRINCIPAL + SAISIE
+    ════════════════════════════════════════ -->
+    <main class="main-content d-flex flex-column">
+
+      <!-- En-tête -->
+      <header class="chat-header d-flex align-items-center justify-content-between px-4 py-3">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-list fs-4 d-lg-none" id="btn-toggle-sidebar" role="button"></i>
+          <h5 class="m-0">AI Math Chatbot</h5>
+        </div>
+
+        <!-- Sélecteur de modèle IA -->
+        <div class="dropdown">
+          <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="bi bi-cpu"></i> <span id="modele-actuel">Basique</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="#" data-modele="Basique">⚡ Basique — rapide et efficace</a></li>
+            <li><a class="dropdown-item" href="#" data-modele="Pro">🧠 Pro — pour les problèmes complexes</a></li>
+            <li><a class="dropdown-item" href="#" data-modele="Max">🚀 Max — analyses approfondies</a></li>
+          </ul>
+        </div>
+
+        <!-- Toggle thème rapide -->
+        <button class="btn btn-outline-light btn-sm ms-2" id="btn-toggle-theme" title="Changer de thème">
+          <i class="bi bi-sun"></i>
+        </button>
+      </header>
+
+      <!-- ZONE 2 — Messages -->
+      <section class="chat-zone flex-grow-1 overflow-auto px-4 py-3" id="zone-messages">
+
+        <!-- Message de bienvenue -->
+        <div class="text-center text-secondary mt-5">
+          <i class="bi bi-calculator display-1"></i>
+          <h4 class="mt-3">Bienvenue sur AI Math Chatbot</h4>
+          <p>Posez une question, uploadez un exercice ou utilisez le micro pour commencer.</p>
+        </div>
+
+        <!-- Exemple : message utilisateur -->
+        <!--
+        <div class="message message-user">
+          <div class="message-content">Résous x² + 2x + 1 = 0</div>
+        </div>
+
+        <div class="message message-assistant">
+          <div class="message-content">
+            <p>On reconnaît une identité remarquable :</p>
+            <p>$$x^2 + 2x + 1 = (x+1)^2$$</p>
+            <p>Donc $(x+1)^2 = 0 \Rightarrow x = -1$ (racine double).</p>
+          </div>
+          <div class="message-actions">
+            <i class="bi bi-hand-thumbs-up"></i>
+            <i class="bi bi-hand-thumbs-down"></i>
+            <i class="bi bi-clipboard"></i>
+          </div>
+        </div>
+        -->
+      </section>
+
+      <!-- ZONE 3 — Barre de saisie -->
+      <footer class="input-zone px-4 py-3">
+
+        <!-- Aperçu des fichiers sélectionnés -->
+        <div id="apercu-fichiers" class="d-flex gap-2 mb-2 flex-wrap"></div>
+
+        <div class="input-group">
+          <button class="btn btn-outline-secondary" id="btn-upload" title="Joindre un fichier (max 5)">
+            <i class="bi bi-paperclip"></i>
+          </button>
+          <input type="file" id="input-fichier" multiple accept=".pdf,.jpg,.jpeg,.png,.docx" hidden>
+
+          <textarea class="form-control" id="input-message" rows="1"
+                    placeholder="Écrivez votre question mathématique..."></textarea>
+
+          <button class="btn btn-outline-secondary" id="btn-micro" title="Enregistrement vocal">
+            <i class="bi bi-mic"></i>
+          </button>
+
+          <button class="btn btn-primary" id="btn-envoyer" title="Envoyer">
+            <i class="bi bi-send"></i>
+          </button>
+        </div>
+
+        <p class="text-center text-secondary small mt-2 mb-0">
+          AI Math Chatbot peut faire des erreurs. Vérifiez les informations importantes.
+        </p>
+      </footer>
+
+    </main>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Notre script -->
+  <script src="js/chat.js"></script>
+</body>
+</html>

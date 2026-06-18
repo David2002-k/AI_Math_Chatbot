@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="sombre">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paramètres — AI Math Chatbot</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="../css/style.css" rel="stylesheet">
+
+  <style>
+    body { overflow: auto; }
+  </style>
+</head>
+<body>
+
+  <div class="parametres-wrapper">
+
+    <!-- ════════════════════════════════════════
+         NAVIGATION DES PARAMÈTRES
+    ════════════════════════════════════════ -->
+    <aside class="parametres-sidebar d-flex flex-column">
+      <a href="../index.html" class="retour">
+        <i class="bi bi-arrow-left"></i> <span>Retour au chat</span>
+      </a>
+
+      <div class="param-nav-item active" data-section="general">
+        <i class="bi bi-sliders"></i> <span>Général</span>
+      </div>
+      <div class="param-nav-item" data-section="modele">
+        <i class="bi bi-cpu"></i> <span>Modèle IA</span>
+      </div>
+      <div class="param-nav-item" data-section="profil">
+        <i class="bi bi-person-circle"></i> <span>Profil</span>
+      </div>
+      <div class="param-nav-item" data-section="securite">
+        <i class="bi bi-shield-lock"></i> <span>Sécurité</span>
+      </div>
+      <div class="param-nav-item" data-section="donnees">
+        <i class="bi bi-database"></i> <span>Données</span>
+      </div>
+    </aside>
+
+
+    <!-- ════════════════════════════════════════
+         CONTENU DES PARAMÈTRES
+    ════════════════════════════════════════ -->
+    <main class="parametres-content">
+
+      <!-- ═══════════ SECTION GÉNÉRAL ═══════════ -->
+      <section class="param-section active" id="section-general">
+        <h2>Général</h2>
+
+        <!-- Thème -->
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Thème</div>
+            <div class="param-row-desc">Choisissez l'apparence de l'interface — table parametres.theme</div>
+          </div>
+          <div class="theme-toggle">
+            <button data-theme-choix="clair">
+              <i class="bi bi-sun"></i> Clair
+            </button>
+            <button data-theme-choix="sombre" class="active">
+              <i class="bi bi-moon"></i> Sombre
+            </button>
+          </div>
+        </div>
+
+        <!-- Langue -->
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Langue de l'interface</div>
+            <div class="param-row-desc">Langue utilisée dans les menus et messages système — table parametres.langue</div>
+          </div>
+          <select class="param-select" id="select-langue">
+            <option value="fr" selected>🇫🇷 Français</option>
+            <option value="en">🇬🇧 English</option>
+          </select>
+        </div>
+
+        <!-- Notifications -->
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Sons de notification</div>
+            <div class="param-row-desc">Jouer un son quand l'IA termine sa réponse</div>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="switch-sons" style="width:3em;height:1.5em;" checked>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ═══════════ SECTION MODÈLE IA ═══════════ -->
+      <section class="param-section" id="section-modele">
+        <h2>Modèle IA</h2>
+        <p class="text-secondary mb-4" style="font-size:0.9rem;">
+          Choisissez le modèle utilisé par défaut pour vos nouvelles conversations.
+          Vous pourrez toujours changer de modèle pour une conversation précise
+          depuis l'en-tête du chat — table <code>parametres.modele_id</code>.
+        </p>
+
+        <div class="modele-cards">
+
+          <div class="modele-card" data-modele="Basique">
+            <div class="modele-icone">⚡</div>
+            <div class="modele-nom">Basique</div>
+            <div class="modele-desc">
+              Rapide et efficace pour les questions simples du quotidien.
+              Idéal pour l'arithmétique et l'algèbre de base.
+            </div>
+          </div>
+
+          <div class="modele-card selected" data-modele="Pro">
+            <div class="modele-icone">🧠</div>
+            <div class="modele-nom">Pro</div>
+            <div class="modele-desc">
+              Plus puissant pour les problèmes mathématiques complexes :
+              algèbre linéaire, intégrales, statistiques avancées.
+            </div>
+          </div>
+
+          <div class="modele-card" data-modele="Max">
+            <div class="modele-icone">🚀</div>
+            <div class="modele-nom">Max</div>
+            <div class="modele-desc">
+              Le plus performant pour les analyses approfondies,
+              longues démonstrations et exercices complexes multi-étapes.
+            </div>
+          </div>
+
+        </div>
+
+        <div class="param-row" style="margin-top: 24px;">
+          <div>
+            <div class="param-row-label">Réponses détaillées par défaut</div>
+            <div class="param-row-desc">L'IA explique chaque étape même pour les calculs simples</div>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="switch-detail" style="width:3em;height:1.5em;" checked>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ═══════════ SECTION PROFIL ═══════════ -->
+      <section class="param-section" id="section-profil">
+        <h2>Profil</h2>
+
+        <div class="profil-header">
+          <div class="profil-avatar">
+            <i class="bi bi-person"></i>
+            <div class="edit-badge"><i class="bi bi-camera"></i></div>
+          </div>
+          <div>
+            <div class="param-row-label" style="font-size:1.1rem;">Utilisateur Anonyme</div>
+            <div class="param-row-desc">Type de compte : <strong>anonyme</strong> — table utilisateurs.type</div>
+          </div>
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Nom complet</div>
+            <div class="param-row-desc">Affiché dans la barre latérale</div>
+          </div>
+          <input type="text" class="param-select" value="" placeholder="Votre nom" style="text-align:right;">
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Adresse email</div>
+            <div class="param-row-desc">Utilisée pour la connexion</div>
+          </div>
+          <input type="email" class="param-select" value="" placeholder="Non renseigné" style="text-align:right;" disabled>
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Convertir en compte permanent</div>
+            <div class="param-row-desc">Sauvegardez votre historique en créant un compte</div>
+          </div>
+          <a href="inscription.html" class="btn btn-primary btn-sm">Créer un compte</a>
+        </div>
+      </section>
+
+
+      <!-- ═══════════ SECTION SÉCURITÉ ═══════════ -->
+      <section class="param-section" id="section-securite">
+        <h2>Sécurité</h2>
+
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Mot de passe</div>
+            <div class="param-row-desc">Dernière modification : jamais</div>
+          </div>
+          <button class="btn btn-outline-light btn-sm">Modifier</button>
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Sessions actives</div>
+            <div class="param-row-desc">Appareils connectés à votre compte — table sessions</div>
+          </div>
+          <button class="btn btn-outline-light btn-sm">Voir tout (1)</button>
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Déconnexion</div>
+            <div class="param-row-desc">Révoque la session actuelle — sessions.est_actif = False</div>
+          </div>
+          <button class="btn btn-outline-light btn-sm" id="btn-deconnexion">Se déconnecter</button>
+        </div>
+      </section>
+
+
+      <!-- ═══════════ SECTION DONNÉES ═══════════ -->
+      <section class="param-section" id="section-donnees">
+        <h2>Données</h2>
+
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Exporter mes conversations</div>
+            <div class="param-row-desc">Télécharger l'historique complet (chats + messages)</div>
+          </div>
+          <button class="btn btn-outline-light btn-sm">
+            <i class="bi bi-download me-1"></i> Exporter
+          </button>
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Effacer l'historique des recherches</div>
+            <div class="param-row-desc">Supprime toutes les entrées de la table recherches</div>
+          </div>
+          <button class="btn btn-outline-light btn-sm">Effacer</button>
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Supprimer toutes les conversations</div>
+            <div class="param-row-desc">Action irréversible — supprime chats + messages + fichiers</div>
+          </div>
+          <button class="btn-danger-outline">Tout supprimer</button>
+        </div>
+
+        <div class="param-row">
+          <div>
+            <div class="param-row-label">Supprimer mon compte</div>
+            <div class="param-row-desc">Action irréversible — utilisateurs.est_actif = False</div>
+          </div>
+          <button class="btn-danger-outline">Supprimer le compte</button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // ── Navigation entre sections ──────────────
+    document.querySelectorAll(".param-nav-item").forEach(item => {
+      item.addEventListener("click", () => {
+        document.querySelectorAll(".param-nav-item").forEach(i => i.classList.remove("active"));
+        document.querySelectorAll(".param-section").forEach(s => s.classList.remove("active"));
+
+        item.classList.add("active");
+        document.getElementById("section-" + item.dataset.section).classList.add("active");
+      });
+    });
+
+    // ── Toggle thème clair/sombre ──────────────
+    const boutonsTheme = document.querySelectorAll("[data-theme-choix]");
+
+    function appliquerTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem("theme", theme);
+
+      boutonsTheme.forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.themeChoix === theme);
+      });
+    }
+
+    boutonsTheme.forEach(btn => {
+      btn.addEventListener("click", () => {
+        appliquerTheme(btn.dataset.themeChoix);
+        // TODO: PATCH /api/parametres { theme: ... }
+      });
+    });
+
+    // Applique le thème sauvegardé au chargement
+    const themeEnregistre = localStorage.getItem("theme") || "sombre";
+    appliquerTheme(themeEnregistre);
+
+    // ── Sélection du modèle IA par défaut ──────
+    document.querySelectorAll(".modele-card").forEach(card => {
+      card.addEventListener("click", () => {
+        document.querySelectorAll(".modele-card").forEach(c => c.classList.remove("selected"));
+        card.classList.add("selected");
+        // TODO: PATCH /api/parametres { modele_id: ... }
+      });
+    });
+
+    // ── Déconnexion ─────────────────────────────
+    document.getElementById("btn-deconnexion").addEventListener("click", () => {
+      // TODO: POST /api/auth/logout → sessions.est_actif = False
+      window.location.href = "connexion.html";
+    });
+  </script>
+</body>
+</html>
