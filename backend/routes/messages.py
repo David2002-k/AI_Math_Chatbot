@@ -3,7 +3,7 @@ routes/messages.py
 ─────────────────────────────────────────────
 Gestion des messages (table messages) :
 
-POST  /api/messages              → envoyer un message, obtenir la réponse IA
+POST  /api/messages               → envoyer un message, obtenir la réponse IA
 PATCH /api/messages/{id}/reaction  → like / dislike sur une réponse IA
 ─────────────────────────────────────────────
 """
@@ -15,7 +15,9 @@ from database import get_db
 from models import Message, Chat, Fichier, Utilisateur, ModeleIA
 from schemas import MessageCreation, MessageReponse, MessageReaction
 from dependencies import obtenir_utilisateur_courant
-from gemini_service import generer_reponse, generer_titre_chat
+
+# CORRECTION ICI : Importation depuis le sous-dossier 'services'
+from services.gemini_service import generer_reponse, generer_titre_chat
 
 router = APIRouter(prefix="/api/messages", tags=["Messages"])
 

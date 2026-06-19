@@ -1,60 +1,57 @@
 """
 main.py
 ─────────────────────────────────────────────
-Point d'entrée du serveur FastAPI.
-
-Au démarrage :
-- crée les tables de la base de données si elles n'existent pas
-- configure le CORS (autorise le frontend à appeler l'API)
-- branche les routes (routes/)
-
-Lancer le serveur :
-    uvicorn main:app --reload --port 8000
-
-Documentation interactive :
-    http://localhost:8000/docs
+Point d'entrée principal de l'API FastAPI.
+Configuration du serveur, des middlewares et des routes.
 ─────────────────────────────────────────────
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
-from database import Base, engine
+# Importation de la connexion BDD pour affichage au démarrage
+from database import engine
+from sqlalchemy.exc import OperationalError
 
-# Crée toutes les tables définies dans models.py (si absentes)
-Base.metadata.create_all(bind=engine)
+# Importation des routeurs depuis le package 'routes'
+from routes import auth, chats, messages, fichiers, parametres, recherche, admin
 
+# Initialisation de l'application FastAPI
 app = FastAPI(
     title="AI Math Chatbot API",
-    description="API pour l'agent conversationnel mathématique intelligent",
+    description="Backend FastAPI pour l'application de Chatbot Mathématique avec support LaTeX",
     version="1.0.0"
 )
 
-# ── CORS ──────────────────────────────────────
-# Autorise le frontend (Bootstrap, servi sur un autre port)
-# à communiquer avec ce backend.
+# Configuration du Middleware CORS pour la communication avec le Frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # à restreindre en production
+    allow_origins=["*"],  # À restreindre en production (ex: ["http://localhost:3000"])
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Test de connexion à la base de données PostgreSQL au démarrage
+try:
+    with engine.connect() as connection:
+        print("✅ Connexion à PostgreSQL réussie !")
+except OperationalError as e:
+    print(f"❌ Échec de la connexion à PostgreSQL : {str(e)}")
 
-# ── Route de test ─────────────────────────────
+# Enregistrement des routes de l'API (sans le .router derrière car déjà aliasés)
+app.include_router(auth)
+app.include_router(chats)
+app.include_router(messages)
+app.include_router(fichiers)
+app.include_router(parametres)
+app.include_router(recherche)
+app.include_router(admin)
+
 @app.get("/")
-def accueil():
-    """Vérifie que l'API fonctionne."""
-    return {"message": "AI Math Chatbot API opérationnelle 🚀"}
-
-
-# ── Branchement des routes ─────────────────────
-from routes import auth, chats, messages, fichiers, parametres
-
-app.include_router(auth.router)
-app.include_router(chats.router)
-app.include_router(messages.router)
-app.include_router(fichiers.router)
-app.include_router(parametres.router)
-app.include_router(parametres.router_modeles)
+def home():
+    return {
+        "status": "online",
+        "message": "Bienvenue sur l'API du AI Math Chatbot. Accédez à la documentation sur /docs"
+    }
