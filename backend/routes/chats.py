@@ -1,20 +1,12 @@
 """
 routes/chats.py
 ─────────────────────────────────────────────
-Gestion des conversations (table chats) :
-
-POST   /api/chats                 → créer une nouvelle conversation
-GET    /api/chats                 → lister l'historique (épinglés/récents/archivés)
-GET    /api/chats/{id}             → récupérer une conversation + ses messages
-PATCH  /api/chats/{id}              → renommer / épingler / archiver
-DELETE /api/chats/{id}                → supprimer une conversation
-GET    /api/chats/recherche?q=...      → rechercher dans l'historique
+Gestion des conversations (table chats) corrigée pour l'ordre des routes.
 ─────────────────────────────────────────────
 """
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 from datetime import datetime
 
 from database import get_db
@@ -70,7 +62,7 @@ def lister_chats(
 
 
 # ══════════════════════════════════════════════
-# RECHERCHER DANS L'HISTORIQUE
+# RECHERCHER DANS L'HISTORIQUE — IMPÉRATIVEMENT PLACÉ AVANT {chat_id}
 # ══════════════════════════════════════════════
 @router.get("/recherche", response_model=list[ChatReponse])
 def rechercher_chats(
@@ -79,7 +71,7 @@ def rechercher_chats(
     db: Session = Depends(get_db)
 ):
     """Filtre les conversations par mot-clé dans le titre, et sauvegarde la recherche."""
-    # Sauvegarde dans la table recherches (historique des recherches)
+    # Sauvegarde dans la table recherches
     db.add(Recherche(utilisateur_id=utilisateur.id, mot_cle=q))
     db.commit()
 
@@ -123,7 +115,7 @@ def modifier_chat(
 
     if donnees.titre is not None:
         chat.titre = donnees.titre
-        chat.titre_modifie = True  # l'utilisateur a renommé manuellement
+        chat.titre_modifie = True
 
     if donnees.est_epingle is not None:
         chat.est_epingle = donnees.est_epingle
@@ -151,7 +143,7 @@ def supprimer_chat(
 ):
     chat = _verifier_proprietaire(chat_id, utilisateur, db)
 
-    db.delete(chat)  # cascade supprime aussi messages + fichiers liés
+    db.delete(chat)
     db.commit()
     return {"message": "Conversation supprimée."}
 

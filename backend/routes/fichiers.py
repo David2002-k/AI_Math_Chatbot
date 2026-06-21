@@ -1,19 +1,13 @@
 """
 routes/fichiers.py
 ─────────────────────────────────────────────
-Upload de fichiers (table fichiers) :
-
-POST /api/fichiers/upload   → upload jusqu'à 5 fichiers (PDF, image, DOCX)
-                                liés à un message_id existant.
-
-Le contenu est extrait et stocké dans fichiers.contenu_extrait
-pour être envoyé à Gemini avec la question (voir routes/messages.py).
+Upload de fichiers (table fichiers) sécurisé et corrigé.
 ─────────────────────────────────────────────
 """
 
 import os
 import uuid
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -42,11 +36,7 @@ def _type_fichier(extension: str) -> str:
 
 
 def _extraire_contenu(chemin: str, extension: str) -> str:
-    """
-    Extrait le texte d'un fichier pour l'envoyer à Gemini.
-    PDF/DOCX → extraction texte. Images → laissées vides ici,
-    Gemini multimodal peut aussi les lire directement si besoin.
-    """
+    """ Extrait le texte d'un fichier de mathématiques pour l'envoyer à Gemini. """
     try:
         if extension == ".pdf":
             from pypdf import PdfReader
@@ -58,10 +48,61 @@ def _extraire_contenu(chemin: str, extension: str) -> str:
             doc = Document(chemin)
             return "\n".join(p.text for p in doc.paragraphs)
 
-    except Exception:
+    except Exception as e:
+        print(f"Erreur d'extraction sur {chemin}: {str(e)}")
         return ""
 
     return ""
+
+
+@router.post("", response_model=FichierReponse)
+async def uploader_fichier(
+    chat_id: int = Form(...),
+    file: UploadFile = File(...),
+    utilisateur: Utilisateur = Depends(obtenir_utilisateur_courant),
+    db: Session = Depends(get_db)
+):
+    """Upload un fichier lié à une conversation, avant que le message ne soit créé.
+    Le fichier sera rattaché au message dès l'envoi du message (voir routes/messages.py)."""
+    chat = db.query(Chat).filter(
+        Chat.id == chat_id,
+        Chat.utilisateur_id == utilisateur.id
+    ).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Conversation introuvable.")
+
+    extension = os.path.splitext(file.filename)[1].lower()
+    if extension not in EXTENSIONS_AUTORISEES:
+        raise HTTPException(status_code=400, detail=f"Type de fichier non autorisé : {extension}")
+
+    contenu_bytes = await file.read()
+    if len(contenu_bytes) > TAILLE_MAX_OCTETS:
+        raise HTTPException(status_code=400, detail=f"{file.filename} dépasse les 10 Mo autorisés.")
+
+    nom_unique = f"{uuid.uuid4().hex}{extension}"
+    chemin_complet = os.path.join(DOSSIER_UPLOADS, nom_unique)
+
+    with open(chemin_complet, "wb") as f:
+        f.write(contenu_bytes)
+        f.flush()
+        os.fsync(f.fileno())
+
+    contenu_extrait = _extraire_contenu(chemin_complet, extension)
+
+    fichier_db = Fichier(
+        message_id=None,
+        chat_id=chat_id,
+        nom_original=file.filename,
+        nom_fichier=nom_unique,
+        type_fichier=_type_fichier(extension),
+        taille=len(contenu_bytes),
+        chemin=chemin_complet,
+        contenu_extrait=contenu_extrait
+    )
+    db.add(fichier_db)
+    db.commit()
+    db.refresh(fichier_db)
+    return fichier_db
 
 
 @router.post("/upload", response_model=list[FichierReponse])
@@ -82,29 +123,36 @@ async def uploader_fichiers(
     if len(fichiers) > MAX_FICHIERS:
         raise HTTPException(status_code=400, detail=f"Maximum {MAX_FICHIERS} fichiers autorisés.")
 
-    fichiers_crees = []
-
+    # ÉTAPE 1 : Pré-vérification de TOURS les fichiers avant écriture (Évite les fichiers orphelins)
     for fichier in fichiers:
         extension = os.path.splitext(fichier.filename)[1].lower()
-
         if extension not in EXTENSIONS_AUTORISEES:
             raise HTTPException(
                 status_code=400,
-                detail=f"Type de fichier non autorisé : {extension}"
+                detail=f"Type de fichier non autorisé dans {fichier.filename} : {extension}"
             )
 
+    fichiers_crees = []
+
+    # ÉTAPE 2 : Traitement et écriture sécurisée
+    for fichier in fichiers:
+        extension = os.path.splitext(fichier.filename)[1].lower()
         contenu_bytes = await fichier.read()
 
         if len(contenu_bytes) > TAILLE_MAX_OCTETS:
-            raise HTTPException(status_code=400, detail=f"{fichier.filename} dépasse 10 Mo.")
+            raise HTTPException(status_code=400, detail=f"{fichier.filename} dépasse les 10 Mo autorisés.")
 
         # Nom unique sur le serveur pour éviter les collisions
         nom_unique = f"{uuid.uuid4().hex}{extension}"
         chemin_complet = os.path.join(DOSSIER_UPLOADS, nom_unique)
 
+        # block with/open garantit la fermeture complète du fichier à la sortie
         with open(chemin_complet, "wb") as f:
             f.write(contenu_bytes)
+            f.flush() # Force l'écriture immédiate sur le disque dur
+            os.fsync(f.fileno()) # Aligne le système d'exploitation
 
+        # L'extraction peut maintenant lire le fichier fermé en toute sécurité
         contenu_extrait = _extraire_contenu(chemin_complet, extension)
 
         fichier_db = Fichier(
@@ -120,6 +168,8 @@ async def uploader_fichiers(
         fichiers_crees.append(fichier_db)
 
     db.commit()
+    
+    # Rafraîchissement des instances SQLAlchemy
     for f in fichiers_crees:
         db.refresh(f)
 

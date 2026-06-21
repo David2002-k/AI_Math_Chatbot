@@ -1,18 +1,14 @@
 """
 routes/auth.py
 ─────────────────────────────────────────────
-Routes d'authentification :
-
-POST /api/auth/anonyme      → crée un utilisateur anonyme + token
-POST /api/auth/inscription  → crée un compte authentifié
-POST /api/auth/connexion    → connecte un utilisateur existant
-POST /api/auth/deconnexion  → révoque la session courante
+Routes d'authentification corrigées pour respecter les contraintes NOT NULL.
 ─────────────────────────────────────────────
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from datetime import datetime
+import uuid
 
 from database import get_db
 from models import Utilisateur, Session as SessionModel, Parametre
@@ -45,11 +41,15 @@ def _creer_session(db: Session, utilisateur: Utilisateur) -> str:
 def creer_utilisateur_anonyme(db: Session = Depends(get_db)):
     """
     Crée un nouvel utilisateur anonyme avec ses paramètres par défaut,
-    puis génère un token de session. Utilisé à la première visite
-    quand aucun token n'existe encore dans le navigateur.
+    puis génère un token de session.
     """
+    # CORRECTION : Génération de valeurs par défaut pour éviter le crash NOT NULL de Postgres
+    identifiant_unique = str(uuid.uuid4())[:8]
+    
     utilisateur = Utilisateur(
         nom="Utilisateur Anonyme",
+        email=f"anonyme_{identifiant_unique}@chatbot.local", # Évite le crash NOT NULL / UNIQUE
+        mot_de_passe=hasher_mot_de_passe(identifiant_unique), # Mot de passe temporaire requis par le modèle
         type="anonyme",
         est_actif=True
     )
@@ -76,8 +76,7 @@ def inscription(
 ):
     """
     Crée un compte authentifié.
-    Si l'utilisateur avait déjà un compte anonyme (token fourni),
-    on le convertit en compte permanent pour conserver son historique.
+    Convertit le compte anonyme existant si un token valide est fourni.
     """
     # Email déjà utilisé ?
     existe = db.query(Utilisateur).filter(Utilisateur.email == donnees.email).first()

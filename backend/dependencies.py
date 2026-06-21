@@ -57,9 +57,11 @@ def obtenir_utilisateur_courant(
                     return utilisateur
 
     # ── Cas 2 : pas de token valide → on crée un utilisateur anonyme ──
+    import uuid
+    identifiant_unique = str(uuid.uuid4())[:8]
     nouvel_utilisateur = Utilisateur(
         nom="Utilisateur Anonyme",
-        email=None,
+        email=f"anonyme_{identifiant_unique}@chatbot.local",  # email unique requis (NOT NULL + UNIQUE)
         mot_de_passe="",
         type="anonyme",
         est_actif=True

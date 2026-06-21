@@ -157,7 +157,8 @@ class Fichier(Base):
     __tablename__ = "fichiers"
 
     id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("messages.id"), nullable=False)
+    message_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
+    chat_id = Column(Integer, ForeignKey("chats.id"), nullable=True)  # lien temporaire avant la création du message
     nom_original = Column(String, nullable=False)     # ex: "exercice.pdf"
     nom_fichier = Column(String, nullable=False)      # nom unique sur le serveur
     type_fichier = Column(String, nullable=False)     # "pdf" | "image" | "docx"

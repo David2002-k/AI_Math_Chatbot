@@ -1,10 +1,7 @@
 """
 routes/messages.py
 ─────────────────────────────────────────────
-Gestion des messages (table messages) :
-
-POST  /api/messages               → envoyer un message, obtenir la réponse IA
-PATCH /api/messages/{id}/reaction  → like / dislike sur une réponse IA
+Gestion des messages (table messages) sécurisée et optimisée.
 ─────────────────────────────────────────────
 """
 
@@ -16,7 +13,6 @@ from models import Message, Chat, Fichier, Utilisateur, ModeleIA
 from schemas import MessageCreation, MessageReponse, MessageReaction
 from dependencies import obtenir_utilisateur_courant
 
-# CORRECTION ICI : Importation depuis le sous-dossier 'services'
 from services.gemini_service import generer_reponse, generer_titre_chat
 
 router = APIRouter(prefix="/api/messages", tags=["Messages"])
@@ -50,9 +46,21 @@ def envoyer_message(
     db.commit()
     db.refresh(message_user)
 
-    # Récupère le contenu extrait des fichiers déjà liés à ce message (s'il y en a)
-    fichiers = db.query(Fichier).filter(Fichier.message_id == message_user.id).all()
+    # Récupère les fichiers déjà liés à ce message, plus ceux uploadés
+    # avant la création du message et rattachés temporairement à ce chat précis.
+    fichiers = db.query(Fichier).filter(
+        (Fichier.message_id == message_user.id) |
+        ((Fichier.message_id == None) & (Fichier.chat_id == chat.id))
+    ).all()
+    
     contexte_fichiers = "\n".join(f.contenu_extrait for f in fichiers if f.contenu_extrait)
+
+    # Si des fichiers étaient en attente, on les associe définitivement à ce message utilisateur
+    for f in fichiers:
+        if f.message_id is None:
+            f.message_id = message_user.id
+    if fichiers:
+        db.commit()
 
     # ── 2. Détermine quel modèle IA utiliser ──
     nom_modele = "Basique"
@@ -78,10 +86,14 @@ def envoyer_message(
     )
     db.add(message_ia)
 
-    # ── 5. Si c'est le 1er message du chat → génère le titre automatiquement ──
-    nb_messages = db.query(Message).filter(Message.chat_id == chat.id).count()
-    if nb_messages <= 1 and not chat.titre_modifie:
-        chat.titre = generer_titre_chat(donnees.contenu)
+    # ── 5. Renommage automatique intelligent du titre ──
+    # Si le titre est celui par défaut, on le génère via l'IA
+    if chat.titre == "Nouvelle conversation" and not chat.titre_modifie:
+        try:
+            chat.titre = generer_titre_chat(donnees.contenu)
+        except Exception:
+            # Sécurité : Si l'extraction du titre échoue, on prend les premiers mots
+            chat.titre = donnees.contenu[:30] + "..." if len(donnees.contenu) > 30 else donnees.contenu
 
     db.commit()
     db.refresh(message_ia)

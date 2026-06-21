@@ -7,7 +7,6 @@ Points d'accès (Endpoints) sécurisés pour l'administration.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-# CORRECTION : Ajout du # pour le commentaire et retrait de 'backend.'
 from database import get_db
 import models
 
@@ -23,8 +22,8 @@ def obtenir_statistiques_globales(db: Session = Depends(get_db)):
     URL : GET /api/admin/stats
     """
     try:
-        # Compte le nombre total de lignes dans les tables Utilisateurs et Messages
-        total_utilisateurs = db.query(models.User).count()
+        # CORRECTION : Utilisation des bons noms de classes définis dans models.py
+        total_utilisateurs = db.query(models.Utilisateur).count()
         total_messages = db.query(models.Message).count()
         total_conversations = db.query(models.Chat).count()
          

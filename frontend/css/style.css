@@ -1,59 +1,41 @@
-/* ─────────────────────────────────────────────
-   style.css
-   Personnalisation Bootstrap pour AI Math Chatbot
-   Supporte le thème SOMBRE (par défaut) et CLAIR
-   via l'attribut data-theme sur <html>
-───────────────────────────────────────────── */
-
-/* ═══════════════════════════════════════
-   THÈME SOMBRE (par défaut)
-═══════════════════════════════════════ */
-:root,
-html[data-theme="sombre"] {
-  --bg-principal: #1a1a1a;
-  --bg-sidebar: #171717;
-  --bg-message-ia: #2a2a2a;
-  --bg-message-user: #3b5bdb;
-  --bg-input: #262626;
-  --border-color: #2d2d2d;
-  --text-color: #e8e8e8;
-  --text-secondary: #999;
-  --hover-color: #262626;
-  --active-color: #303030;
-  --card-bg: #1e1e1e;
-  --shadow: rgba(0,0,0,0.3);
+/* ==========================================================================
+   1. VARIABLES GLOBALES & THÈMES (Sombre / Clair)
+   ========================================================================== */
+:root[data-theme="sombre"] {
+  --bg-main: #0d0e12;
+  --bg-sidebar: #161820;
+  --bg-card: #1b1e2a;
+  --border-color: #262936;
+  --text-main: #f8f9fa;
+  --text-muted: #79829a;
+  --primary-color: #0d6efd;
+  --primary-hover: #0b5ed7;
+  --msg-user-bg: #0d6efd;
+  --msg-bot-bg: #1b1e2a;
+  --bg-custom-input: #1b1e2a;
 }
 
-/* ═══════════════════════════════════════
-   THÈME CLAIR
-═══════════════════════════════════════ */
-html[data-theme="clair"] {
-  --bg-principal: #ffffff;
-  --bg-sidebar: #f7f7f8;
-  --bg-message-ia: #f1f1f3;
-  --bg-message-user: #3b5bdb;
-  --bg-input: #f1f1f3;
-  --border-color: #e3e3e3;
-  --text-color: #1a1a1a;
-  --text-secondary: #6b7280;
-  --hover-color: #ececec;
-  --active-color: #e3e3e3;
-  --card-bg: #ffffff;
-  --shadow: rgba(0,0,0,0.08);
+:root[data-theme="clair"] {
+  --bg-main: #f8f9fa;
+  --bg-sidebar: #f0f2f5;
+  --bg-card: #ffffff;
+  --border-color: #dee2e6;
+  --text-main: #212529;
+  --text-muted: #6c757d;
+  --primary-color: #0d6efd;
+  --primary-hover: #0b5ed7;
+  --msg-user-bg: #0d6efd;
+  --msg-bot-bg: #e9ecef;
+  --bg-custom-input: #ffffff;
 }
 
-* {
-  box-sizing: border-box;
-}
-
+/* Base Universelle */
 body {
-  margin: 0;
-  height: 100vh;
-  background-color: var(--bg-principal);
-  color: var(--text-color);
-  font-family: 'Segoe UI', sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-main);
   overflow: hidden;
-  transition: background-color 0.2s, color 0.2s;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 #app-wrapper {
@@ -61,694 +43,175 @@ body {
   width: 100vw;
 }
 
-/* ═══════════════════════════════════════
-   ZONE 1 — BARRE LATÉRALE
-═══════════════════════════════════════ */
+/* Liens & Utilitaires */
+.hover-light {
+  transition: color 0.2s ease;
+}
+.hover-light:hover {
+  color: var(--text-main) !important;
+}
+
+/* Correction Contraste Accessibilité (Lien mon compte) */
+#lien-mon-compte {
+  color: var(--text-muted) !important;
+}
+#lien-mon-compte:hover {
+  color: var(--text-main) !important;
+}
+
+/* ==========================================================================
+   2. ZONE 1 — BARRE LATÉRALE (SIDEBAR)
+   ========================================================================== */
 .sidebar {
   width: 280px;
   min-width: 280px;
   background-color: var(--bg-sidebar);
   border-right: 1px solid var(--border-color);
   height: 100vh;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-.chat-item {
-  padding: 9px 10px;
-  border-radius: 8px;
-  font-size: 0.86rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  margin-bottom: 2px;
-  min-width: 0;
+/* Items de l'historique des salons */
+.chat-sidebar-item {
+  transition: background-color 0.2s ease, color 0.2s ease;
+  color: var(--text-muted) !important;
+}
+.chat-sidebar-item:hover {
+  background-color: var(--bg-card);
+  color: var(--text-main) !important;
 }
 
-.chat-item:hover {
-  background-color: var(--hover-color);
-}
-
-.chat-item.active {
-  background-color: var(--active-color);
-  color: var(--text-color);
-}
-
-.chat-titre-tronque {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  flex: 1;
-}
-
-.chat-actions {
-  display: none;
-  gap: 6px;
-  flex-shrink: 0;
-  padding-left: 6px;
-  background: inherit;
-}
-
-.chat-item:hover .chat-actions {
-  display: flex;
-}
-
-/* Sur mobile, toujours afficher les actions (pas de hover) */
-@media (hover: none) {
-  .chat-actions {
-    display: flex;
-  }
-}
-
-.chat-actions i {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  padding: 2px;
-}
-
-.chat-actions i:hover {
-  color: var(--text-color);
-}
-
-#recherche-chat {
-  background-color: var(--bg-input);
-  border-color: var(--border-color);
-  color: var(--text-color);
-}
-
-#recherche-chat::placeholder {
-  color: var(--text-secondary);
-}
-
-.historique-section-titre {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-  padding: 14px 12px 6px 12px;
-  font-weight: 700;
-}
-
-.historique-section-titre:first-child {
-  padding-top: 6px;
-}
-
-/* ═══════════════════════════════════════
-   ZONE PRINCIPALE
-═══════════════════════════════════════ */
+/* ==========================================================================
+   3. ZONE 2 — CONTENU PRINCIPAL & MESSAGES
+   ========================================================================== */
 .main-content {
-  flex: 1;
-  height: 100vh;
-  background-color: var(--bg-principal);
+  background-color: var(--bg-main);
+  transition: background-color 0.3s ease;
 }
 
 .chat-header {
+  background-color: var(--bg-main);
   border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-/* ═══════════════════════════════════════
-   ZONE 2 — MESSAGES
-═══════════════════════════════════════ */
+/* Zone de défilement des messages */
 .chat-zone {
-  max-width: 100%;
-}
-
-.message {
-  max-width: 800px;
-  margin: 0 auto 20px auto;
+  background-color: var(--bg-main);
+  scroll-behavior: smooth;
   display: flex;
   flex-direction: column;
 }
 
-.message-user {
-  align-items: flex-end;
-}
-
-.message-assistant {
-  align-items: flex-start;
-}
-
-.message-content {
-  padding: 12px 16px;
-  border-radius: 14px;
-  line-height: 1.6;
-  max-width: 85%;
-}
-
-.message-user .message-content {
-  background-color: var(--bg-message-user);
-  color: #fff;
-}
-
-.message-assistant .message-content {
-  background-color: var(--bg-message-ia);
-  color: var(--text-color);
-}
-
-.message-actions {
-  margin-top: 6px;
+/* --- STRUCTURE DES BULLES DE DISCUSSION --- */
+.msg-container {
   display: flex;
-  gap: 12px;
-  color: var(--text-secondary);
+  margin-bottom: 1.2rem;
+  width: 100%;
+  animation: fadeIn 0.25s ease-in-out;
 }
 
-.message-actions i {
-  cursor: pointer;
-  font-size: 0.95rem;
+.msg-user {
+  justify-content: flex-end;
 }
 
-.message-actions i:hover {
-  color: var(--text-color);
+.msg-bot {
+  justify-content: flex-start;
 }
 
-.message-actions i.active-like {
-  color: #22c55e;
+.bubble {
+  max-width: 75%;
+  padding: 0.9rem 1.3rem;
+  border-radius: 1.2rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  line-height: 1.5;
+  word-wrap: break-word;
 }
 
-.message-actions i.active-dislike {
-  color: #ef4444;
+/* Bulle Utilisateur */
+.msg-user .bubble {
+  background-color: var(--msg-user-bg);
+  color: #ffffff;
+  border-bottom-right-radius: 0.2rem;
 }
 
-/* ═══════════════════════════════════════
-   ZONE 3 — SAISIE
-═══════════════════════════════════════ */
-.input-zone {
-  border-top: 1px solid var(--border-color);
-}
-
-.input-zone .input-group {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-#input-message {
-  background-color: var(--bg-input);
-  border-color: var(--border-color);
-  color: var(--text-color);
-  resize: none;
-  max-height: 150px;
-}
-
-#input-message:focus {
-  background-color: var(--bg-input);
-  color: var(--text-color);
-  box-shadow: none;
-  border-color: #4f6ef7;
-}
-
-.input-zone .btn-outline-secondary {
-  border-color: var(--border-color);
-  color: var(--text-secondary);
-}
-
-.input-zone .btn-outline-secondary:hover {
-  background-color: var(--hover-color);
-  color: var(--text-color);
-}
-
-.fichier-badge {
-  background-color: var(--bg-input);
+/* Bulle Assistant IA */
+.msg-bot .bubble {
+  background-color: var(--msg-bot-bg);
+  color: var(--text-main);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 0.8rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 220px;
-  color: var(--text-color);
+  border-bottom-left-radius: 0.2rem;
 }
 
-.fichier-badge i {
-  cursor: pointer;
-  color: var(--text-secondary);
+/* Gestion du rendu KaTeX (évite les débordements des longues équations) */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.3rem 0;
 }
 
-.fichier-badge i:hover {
-  color: #f87171;
+/* ==========================================================================
+   4. ZONE DE SAISIE & COMPOSANTS EN BAS (INPUT ZONE)
+   ========================================================================== */
+.input-zone {
+  background-color: var(--bg-main);
+  transition: background-color 0.3s ease;
 }
 
-#btn-micro.recording {
-  background-color: #ef4444;
-  color: #fff;
-  border-color: #ef4444;
+.bg-dark-custom {
+  background-color: var(--bg-custom-input) !important;
+  border: 1px solid var(--border-color) !important;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-/* ═══════════════════════════════════════
-   DROPDOWN (sélecteur modèle, menu compte)
-═══════════════════════════════════════ */
-.dropdown-menu {
-  background-color: var(--card-bg);
-  border-color: var(--border-color);
+/* Animation pour l'enregistrement micro en cours */
+.animate-pulse {
+  animation: pulse 1.5s infinite;
 }
 
-.dropdown-item {
-  color: var(--text-color);
-}
-
-.dropdown-item:hover {
-  background-color: var(--hover-color);
-  color: var(--text-color);
-}
-
-.dropdown-divider {
-  border-color: var(--border-color);
-}
-
-/* ═══════════════════════════════════════
-   BOUTONS OUTLINE (header, comptes)
-═══════════════════════════════════════ */
-.btn-outline-light {
-  border-color: var(--border-color);
-  color: var(--text-color);
-}
-
-.btn-outline-light:hover {
-  background-color: var(--hover-color);
-  color: var(--text-color);
-}
-
-/* ═══════════════════════════════════════
-   RESPONSIVE — mobile / tablette
-═══════════════════════════════════════ */
-@media (max-width: 991px) {
-  .sidebar {
-    position: fixed;
-    z-index: 1000;
-    transform: translateX(-100%);
-    transition: transform 0.25s ease;
-  }
-
-  .sidebar.show {
-    transform: translateX(0);
-  }
-
-  .main-content {
-    width: 100%;
-  }
-}
-
-
-/* ═══════════════════════════════════════════════════════
-   PAGES AUTH (connexion / inscription)
-═══════════════════════════════════════════════════════ */
-.auth-wrapper {
-  min-height: 100vh;
+/* ==========================================================================
+   5. DESIGN DES PAGES COMPLEMENTAIRES (CONNEXION, INSCRIPTION & PARAMETRES)
+   ========================================================================== */
+.auth-body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--bg-principal);
-  padding: 20px;
+  transition: background-color 0.3s ease;
 }
 
 .auth-card {
-  background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 40px;
-  width: 100%;
-  max-width: 420px;
-  box-shadow: 0 10px 40px var(--shadow);
-}
-
-.auth-logo {
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.auth-logo i {
-  font-size: 2.5rem;
-  color: #4f6ef7;
-}
-
-.auth-card h3 {
-  text-align: center;
-  margin-bottom: 4px;
-}
-
-.auth-card p.text-secondary {
-  text-align: center;
-  margin-bottom: 28px;
-  color: var(--text-secondary) !important;
-}
-
-.auth-card label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.auth-card .form-control {
-  background-color: var(--bg-input);
-  border-color: var(--border-color);
-  color: var(--text-color);
-  padding: 10px 14px;
-}
-
-.auth-card .form-control:focus {
-  background-color: var(--bg-input);
-  color: var(--text-color);
-  box-shadow: none;
-  border-color: #4f6ef7;
-}
-
-.auth-card .form-control::placeholder {
-  color: var(--text-secondary);
-}
-
-.btn-primary-full {
-  width: 100%;
-  padding: 10px;
-  font-weight: 600;
-  border-radius: 8px;
-}
-
-.auth-separator {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 20px 0;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-}
-
-.auth-separator::before,
-.auth-separator::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background-color: var(--border-color);
-}
-
-.btn-anonyme {
-  width: 100%;
-  border: 1px solid var(--border-color);
-  background: transparent;
-  color: var(--text-color);
-  padding: 10px;
-  border-radius: 8px;
-  font-weight: 500;
-}
-
-.btn-anonyme:hover {
-  background-color: var(--hover-color);
-}
-
-.auth-footer {
-  text-align: center;
-  margin-top: 20px;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.auth-footer a {
-  color: #4f6ef7;
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.auth-footer a:hover {
-  text-decoration: underline;
-}
-
-.password-field {
-  position: relative;
-}
-
-.password-toggle {
-  position: absolute;
-  right: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  cursor: pointer;
-  color: var(--text-secondary);
-}
-
-
-/* ═══════════════════════════════════════════════════════
-   PAGE PARAMÈTRES
-═══════════════════════════════════════════════════════ */
-.parametres-wrapper {
-  height: 100vh;
-  display: flex;
-  background-color: var(--bg-principal);
-  color: var(--text-color);
-}
-
-.parametres-sidebar {
-  width: 260px;
-  min-width: 260px;
   background-color: var(--bg-sidebar);
-  border-right: 1px solid var(--border-color);
-  padding: 20px 0;
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  max-width: 400px;
+  width: 100%;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-.parametres-sidebar .retour {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 20px 20px 20px;
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-size: 0.9rem;
+.auth-input {
+  background-color: var(--bg-main) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-main) !important;
+}
+.auth-input:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
 }
 
-.parametres-sidebar .retour:hover {
-  color: var(--text-color);
-}
-
-.param-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  border-left: 3px solid transparent;
-}
-
-.param-nav-item i {
-  font-size: 1.1rem;
-}
-
-.param-nav-item:hover {
-  background-color: var(--hover-color);
-  color: var(--text-color);
-}
-
-.param-nav-item.active {
-  background-color: var(--active-color);
-  color: var(--text-color);
-  border-left-color: #4f6ef7;
-  font-weight: 600;
-}
-
-.parametres-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 40px 60px;
-}
-
-.parametres-content h2 {
-  margin-bottom: 30px;
-}
-
-.param-section {
-  display: none;
-  max-width: 700px;
-}
-
-.param-section.active {
-  display: block;
-  animation: fadeIn 0.2s ease;
-}
-
+/* ==========================================================================
+   6. ANIMATIONS (KEYFRAMES)
+   ========================================================================== */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(5px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.param-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 0;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.param-row:last-child {
-  border-bottom: none;
-}
-
-.param-row-label {
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-.param-row-desc {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  margin-top: 2px;
-}
-
-/* Toggle thème */
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background-color: var(--bg-input);
-  border-radius: 999px;
-  padding: 4px;
-  border: 1px solid var(--border-color);
-}
-
-.theme-toggle button {
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  padding: 6px 16px;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.theme-toggle button.active {
-  background-color: var(--card-bg);
-  color: var(--text-color);
-  box-shadow: 0 1px 4px var(--shadow);
-}
-
-/* Select stylisé */
-.param-select {
-  background-color: var(--bg-input);
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 0.88rem;
-  min-width: 180px;
-}
-
-.param-select:focus {
-  outline: none;
-  border-color: #4f6ef7;
-}
-
-/* Cartes modèle IA */
-.modele-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.modele-card {
-  background-color: var(--bg-input);
-  border: 2px solid var(--border-color);
-  border-radius: 12px;
-  padding: 16px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.modele-card:hover {
-  border-color: #4f6ef766;
-}
-
-.modele-card.selected {
-  border-color: #4f6ef7;
-  background-color: rgba(79, 110, 247, 0.08);
-}
-
-.modele-card .modele-icone {
-  font-size: 1.4rem;
-  margin-bottom: 8px;
-}
-
-.modele-card .modele-nom {
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.modele-card .modele-desc {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  line-height: 1.4;
-}
-
-/* Bouton danger */
-.btn-danger-outline {
-  border: 1px solid #ef4444;
-  color: #ef4444;
-  background: transparent;
-  padding: 8px 18px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.btn-danger-outline:hover {
-  background-color: #ef444415;
-}
-
-/* Profil — avatar + infos */
-.profil-header {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 30px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.profil-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background-color: var(--bg-input);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  color: var(--text-secondary);
-  position: relative;
-  flex-shrink: 0;
-}
-
-.profil-avatar .edit-badge {
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  background-color: #4f6ef7;
-  color: #fff;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  cursor: pointer;
-  border: 2px solid var(--card-bg);
-}
-
-@media (max-width: 768px) {
-  .parametres-sidebar {
-    width: 70px;
-    min-width: 70px;
-  }
-  .parametres-sidebar .retour span,
-  .param-nav-item span {
-    display: none;
-  }
-  .parametres-content {
-    padding: 24px;
-  }
-  .modele-cards {
-    grid-template-columns: 1fr;
-  }
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
 }

@@ -1,57 +1,93 @@
 """
-main.py
+backend/main.py
 ─────────────────────────────────────────────
 Point d'entrée principal de l'API FastAPI.
-Configuration du serveur, des middlewares et des routes.
+Regroupe et enregistre proprement toutes les routes du Chatbot.
 ─────────────────────────────────────────────
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 import os
+import shutil
+import uuid
 
-# Importation de la connexion BDD pour affichage au démarrage
+# Importation de la connexion à la base de données
 from database import engine
-from sqlalchemy.exc import OperationalError
+import models
 
-# Importation des routeurs depuis le package 'routes'
-from routes import auth, chats, messages, fichiers, parametres, recherche, admin
+# Importation correcte des fichiers de routes (méthode explicite pour éviter les conflits d'attributs)
+from routes.auth import router as auth_router
+from routes.chats import router as chats_router
+from routes.messages import router as messages_router
+from routes.fichiers import router as fichiers_router
+from routes.parametres import router as parametres_router
+from routes.recherche import router as recherche_router
+from routes.admin import router as admin_router
 
-# Initialisation de l'application FastAPI
+# 1. Création automatique des tables dans PostgreSQL au démarrage si elles n'existent pas
+models.Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
     title="AI Math Chatbot API",
-    description="Backend FastAPI pour l'application de Chatbot Mathématique avec support LaTeX",
+    description="Backend FastAPI avec support PostgreSQL et rendu KaTeX pour les mathématiques",
     version="1.0.0"
 )
 
-# Configuration du Middleware CORS pour la communication avec le Frontend
+# 2. Configuration du CORS
+origins = [
+    "http://127.0.0.1:5500",
+    "http://localhost:5500",
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+    "null",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # À restreindre en production (ex: ["http://localhost:3000"])
+    allow_origins=origins,
+    allow_origin_regex=r"http://(127\.0\.0\.1|localhost)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Test de connexion à la base de données PostgreSQL au démarrage
-try:
-    with engine.connect() as connection:
-        print("✅ Connexion à PostgreSQL réussie !")
-except OperationalError as e:
-    print(f"❌ Échec de la connexion à PostgreSQL : {str(e)}")
+# 3. Enregistrement des routes avec leurs préfixes exacts
+app.include_router(auth_router)
+app.include_router(chats_router)
+app.include_router(messages_router)
+app.include_router(fichiers_router)
+app.include_router(parametres_router)
+app.include_router(recherche_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
 
-# Enregistrement des routes de l'API (sans le .router derrière car déjà aliasés)
-app.include_router(auth)
-app.include_router(chats)
-app.include_router(messages)
-app.include_router(fichiers)
-app.include_router(parametres)
-app.include_router(recherche)
-app.include_router(admin)
-
-@app.get("/")
-def home():
+# 4. Route de test rapide
+@app.get("/", tags=["Santé"])
+def verifier_statut_api():
     return {
         "status": "online",
-        "message": "Bienvenue sur l'API du AI Math Chatbot. Accédez à la documentation sur /docs"
+        "message": "Le serveur du Chatbot Mathématique fonctionne parfaitement.",
+        "database": "PostgreSQL Connected"
     }
+
+# 4bis. Transcription audio
+@app.post("/api/transcribe", tags=["Audio"])
+async def transcrire_audio(file: UploadFile = File(...)):
+    from services.whisper_service import transcrire_audio_en_texte
+
+    os.makedirs("uploads", exist_ok=True)
+    chemin_temp = os.path.join("uploads", f"tmp_{uuid.uuid4().hex}.wav")
+    with open(chemin_temp, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    try:
+        texte = transcrire_audio_en_texte(chemin_temp)
+    finally:
+        if os.path.exists(chemin_temp):
+            os.remove(chemin_temp)
+
+    return {"text": texte}
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

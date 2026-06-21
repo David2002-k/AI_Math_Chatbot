@@ -3,163 +3,287 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Math Chatbot</title>
+  <meta name="description" content="AI Math Chatbot - Assistant intelligent pour résoudre vos problèmes de mathématiques étape par étape.">
+  <title>AI Math Chatbot - Résolveur Premium</title>
 
-  <!-- Bootstrap 5 CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script>
+    if (!localStorage.getItem("token")) {
+      window.location.href = "pages/connexion.html";
+    }
+  </script>
 
-  <!-- Icônes Bootstrap -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="./css/bootstrap.min.css" rel="stylesheet">
+  <link href="./css/style.css" rel="stylesheet">
 
-  <!-- KaTeX — rendu des formules mathématiques -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="./vendor/katex/katex.min.css">
+  <script src="./vendor/katex/katex.min.js"></script>
+  <script src="./vendor/katex/auto-render.min.js"></script>
 
-  <!-- Notre feuille de style -->
-  <link href="css/style.css" rel="stylesheet">
+  <link rel="stylesheet" href="./vendor/bootstrap-icons/bootstrap-icons.min.css">
+
+  <style>
+    :root{
+      --bg-void:#0B0D14; --bg-panel:#11141D; --bg-panel-2:#161A26;
+      --bg-bubble-bot:#161A26; --bg-bubble-user:#2A2748;
+      --ink:#E7E6F0; --ink-dim:#8C8FA3; --line:#232737;
+      --accent:#8B7CFF; --accent-soft:rgba(139,124,255,0.12);
+      --radius-lg:20px; --radius-sm:10px;
+    }
+    *{ box-sizing:border-box; }
+
+    html,body{ height:100%; }
+
+    body{
+      font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background:
+        radial-gradient(ellipse 900px 500px at 12% -10%, rgba(139,124,255,0.10), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 110% 10%, rgba(242,183,5,0.06), transparent 55%),
+        var(--bg-void);
+      color: var(--ink);
+      margin:0;
+    }
+
+    /* ── Typographie d'accent : titres & math en serif éditorial ── */
+    h1,h2,h3,h4,h5,h6,
+    #current-chat-title{
+      font-family: Georgia, "Times New Roman", serif;
+      letter-spacing:-0.01em;
+    }
+    .katex{ font-size: 1.05em; }
+    #app-wrapper{ height:100vh; overflow:hidden; }
+
+    .sidebar{ width:280px; min-width:280px; background:var(--bg-panel); border-right:1px solid var(--line); position:relative; transition: transform .2s ease; }
+    .sidebar::before{ content:"∑"; position:absolute; top:-28px; right:-18px; font-family: Georgia, 'Times New Roman', serif; font-size:170px; color:rgba(139,124,255,0.05); pointer-events:none; line-height:1; }
+    .sidebar .p-3.border-bottom{ border-color:var(--line) !important; }
+    .sidebar .fw-bold.fs-5{ font-family: Georgia, 'Times New Roman', serif; font-weight:600; letter-spacing:-0.01em; }
+    .sidebar .text-primary.fw-bold{ display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg,var(--accent),#5B4FE0); color:#0B0D14 !important; font-family: 'Courier New', monospace; font-weight:700; font-size:15px; }
+
+    #btn-nouveau-chat{ background:linear-gradient(135deg,var(--accent),#6F5FE8); border:none; letter-spacing:0.01em; transition:transform .15s ease, box-shadow .15s ease; box-shadow:0 6px 20px -6px rgba(139,124,255,0.55); }
+    #btn-nouveau-chat:hover{ transform:translateY(-1px); box-shadow:0 10px 24px -6px rgba(139,124,255,0.65); }
+
+    #recherche-chat{ background:var(--bg-panel-2) !important; border:1px solid var(--line) !important; border-radius:var(--radius-sm); color:var(--ink) !important; }
+    #recherche-chat::placeholder{ color:var(--ink-dim); }
+    #recherche-chat:focus{ border-color:var(--accent) !important; box-shadow:0 0 0 3px var(--accent-soft) !important; }
+
+    #liste-chats{ scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+    #liste-chats::-webkit-scrollbar{ width:6px; }
+    #liste-chats::-webkit-scrollbar-thumb{ background:var(--line); border-radius:10px; }
+    .chat-sidebar-item{ transition:background .15s ease; border:1px solid transparent; }
+    .chat-sidebar-item:hover{ background:var(--bg-panel-2) !important; border-color:var(--line); }
+    #lien-mon-compte:hover, #btn-parametres:hover{ color:var(--accent) !important; }
+
+    .main-content{ background:transparent; min-width:0; }
+    .chat-header{ border-bottom:1px solid var(--line); backdrop-filter:blur(6px); }
+    #current-chat-title{ font-size:1.05rem; font-weight:600; color:var(--ink) !important; }
+    #btn-toggle-theme{ font-size:0.85rem !important; border:1px solid var(--line); border-radius:var(--radius-sm); }
+    #btn-toggle-theme:hover{ border-color:var(--accent); color:var(--accent) !important; }
+    #btn-toggle-sidebar{ display:none; border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--ink-dim); }
+
+    #welcome-message{ max-width:620px; margin:auto; }
+    #welcome-message h4{ font-size:2rem; font-weight:600; background:linear-gradient(135deg,#E7E6F0,#A89BFF); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    #welcome-message p{ font-size:0.98rem; }
+
+    .msg-container{ display:flex; margin-bottom:18px; }
+    .msg-bot{ justify-content:flex-start; }
+    .msg-user{ justify-content:flex-end; }
+    .msg-container .bubble{ max-width:72%; padding:14px 18px; line-height:1.55; font-size:0.96rem; overflow-wrap:break-word; }
+    .msg-bot .bubble p:last-child{ margin-bottom:0 !important; }
+    .msg-bot .bubble ul{ margin-bottom:0.5rem; }
+    .msg-bot .bubble{ background:var(--bg-bubble-bot); border:1px solid var(--line); border-radius:4px var(--radius-lg) var(--radius-lg) var(--radius-lg); color:var(--ink); }
+    .msg-user .bubble{ background:var(--bg-bubble-user); border:1px solid rgba(139,124,255,0.25); border-radius:var(--radius-lg) 4px var(--radius-lg) var(--radius-lg); color:var(--ink); }
+
+    /* Lisibilité des formules mathématiques (KaTeX) */
+    .msg-bot .katex{ font-size: 1.15em; color: #F4F1FF; }
+    .msg-bot .katex-display{
+      background: var(--bg-panel-2);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      margin: 10px 0 !important;
+      overflow-x: auto;
+    }
+
+    /* Indicateur "l'IA réfléchit" — points animés, toujours visible */
+    .typing-dots{ display:flex; align-items:center; gap:5px; padding: 4px 2px; }
+    .typing-dots span{
+      width:7px; height:7px; border-radius:50%;
+      background: var(--accent);
+      display:inline-block;
+      animation: typing-bounce 1.2s infinite ease-in-out both;
+    }
+    .typing-dots span:nth-child(1){ animation-delay: -0.28s; }
+    .typing-dots span:nth-child(2){ animation-delay: -0.14s; }
+    @keyframes typing-bounce{
+      0%, 80%, 100% { transform: scale(0.6); opacity:0.5; }
+      40% { transform: scale(1); opacity:1; }
+    }
+
+    .input-zone{ border-top:1px solid var(--line); }
+    .bg-dark-custom{ background:var(--bg-panel) !important; border-color:var(--line) !important; transition:border-color .15s ease, box-shadow .15s ease; }
+    .bg-dark-custom:focus-within{ border-color:var(--accent) !important; box-shadow:0 0 0 3px var(--accent-soft); }
+    #input-message{ font-size:0.97rem; }
+    #input-message::placeholder{ color:var(--ink-dim); }
+
+    /* Boutons d'action ronds (façon chatbot moderne) */
+    #btn-upload, #btn-micro{
+      width:38px; height:38px;
+      display:flex !important; align-items:center; justify-content:center;
+      border-radius:50%;
+      flex-shrink:0;
+    }
+    #btn-upload:hover, #btn-micro:hover{
+      color: var(--accent) !important;
+      background: var(--accent-soft) !important;
+    }
+    #btn-envoyer{
+      width:42px; height:42px;
+      padding:0 !important;
+      border-radius:50%;
+      flex-shrink:0;
+      display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(135deg,var(--accent),#6F5FE8); border:none; font-weight:600;
+      transition:transform .15s ease, box-shadow .15s ease;
+      white-space:nowrap;
+    }
+    #btn-envoyer .btn-label{ display:none; }
+    #btn-envoyer i{ font-size:1.05rem; }
+    #btn-envoyer:hover{ transform:translateY(-1px) scale(1.04); box-shadow:0 8px 18px -6px rgba(139,124,255,0.55); }
+    #btn-envoyer:disabled{ opacity:0.4; cursor:not-allowed; transform:none; }
+    #apercu-fichiers .badge{ background:var(--bg-panel-2) !important; border:1px solid var(--line); font-weight:500; border-radius:var(--radius-sm); }
+    .animate-pulse{ animation:pulse-mic 1.1s ease-in-out infinite; }
+    @keyframes pulse-mic{ 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+    a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+    @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
+
+    /* ── RESPONSIVE MOBILE ── */
+    @media (max-width: 768px){
+      .sidebar{ position:fixed; z-index:1040; height:100vh; top:0; left:0; transform:translateX(-100%); box-shadow:0 0 30px rgba(0,0,0,0.5); }
+      .sidebar.sidebar-ouverte{ transform:translateX(0); }
+      #btn-toggle-sidebar{ display:inline-flex !important; }
+      .msg-container .bubble{ max-width:88%; font-size:0.92rem; }
+      .chat-header{ padding-left:1rem !important; padding-right:1rem !important; }
+      .input-zone{ padding-left:1rem !important; padding-right:1rem !important; }
+      #welcome-message h4{ font-size:1.5rem; }
+      #btn-envoyer span.btn-label{ display:none; }
+      .sidebar-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1039; }
+      .sidebar-overlay.actif{ display:block; }
+    }
+  </style>
 </head>
 <body>
 
   <div class="d-flex" id="app-wrapper">
 
-    <!-- ════════════════════════════════════════
-         ZONE 1 — BARRE LATÉRALE (historique)
-    ════════════════════════════════════════ -->
-    <aside class="sidebar d-flex flex-column">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-      <!-- Bouton nouvelle conversation -->
+    <aside class="sidebar d-flex flex-column" id="sidebar">
+      <div class="p-3 border-bottom border-secondary d-flex align-items-center gap-2">
+        <span class="text-primary fw-bold">∑</span>
+        <span class="fw-bold fs-5 text-light">AI Math Chatbot</span>
+      </div>
+
       <div class="p-3">
-        <button class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2" id="btn-nouveau-chat">
+        <button class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2 rounded-pill fw-semibold shadow-sm" id="btn-nouveau-chat">
           <i class="bi bi-plus-lg"></i> Nouvelle conversation
         </button>
       </div>
 
-      <!-- Barre de recherche -->
       <div class="px-3 pb-2">
-        <div class="input-group">
-          <span class="input-group-text bg-transparent border-secondary">
-            <i class="bi bi-search"></i>
-          </span>
-          <input type="text" class="form-control" id="recherche-chat" placeholder="Rechercher une conversation...">
-        </div>
+        <input type="text" class="form-control bg-transparent border-secondary text-light small" id="recherche-chat" placeholder="Rechercher..." aria-label="Rechercher une conversation">
       </div>
 
-      <!-- Liste des conversations — générée dynamiquement par chat.js -->
       <div class="flex-grow-1 overflow-auto px-2" id="liste-chats">
         <div class="text-secondary small px-2">Chargement de l'historique...</div>
       </div>
 
-      <!-- Pied de la barre latérale -->
       <div class="p-3 border-top border-secondary d-flex align-items-center justify-content-between">
-        <a href="pages/connexion.html" class="d-flex align-items-center gap-2 text-decoration-none" style="color: inherit;">
-          <i class="bi bi-person-circle fs-4"></i>
-          <span class="small">Mon compte</span>
+        <a href="pages/connexion.html" class="d-flex align-items-center gap-2 text-decoration-none text-secondary" id="lien-mon-compte">
+          <i class="bi bi-person-circle"></i>
+          <span class="small fw-medium">Mon compte</span>
         </a>
-        <a href="pages/parametres.html" style="color: inherit;">
-          <i class="bi bi-gear" id="btn-parametres" role="button" title="Paramètres"></i>
+        <a href="pages/parametres.html" class="text-secondary" aria-label="Ouvrir les paramètres">
+          <i class="bi bi-gear" id="btn-parametres" title="Paramètres"></i>
         </a>
       </div>
     </aside>
 
-
-    <!-- ════════════════════════════════════════
-         ZONE 2 + 3 — CHAT PRINCIPAL + SAISIE
-    ════════════════════════════════════════ -->
-    <main class="main-content d-flex flex-column">
-
-      <!-- En-tête -->
+    <main class="main-content d-flex flex-column flex-grow-1">
       <header class="chat-header d-flex align-items-center justify-content-between px-4 py-3">
         <div class="d-flex align-items-center gap-2">
-          <i class="bi bi-list fs-4 d-lg-none" id="btn-toggle-sidebar" role="button"></i>
-          <h5 class="m-0">AI Math Chatbot</h5>
-        </div>
-
-        <!-- Sélecteur de modèle IA -->
-        <div class="dropdown">
-          <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-            <i class="bi bi-cpu"></i> <span id="modele-actuel">Basique</span>
+          <button class="btn btn-link text-secondary p-1" id="btn-toggle-sidebar" aria-label="Ouvrir le menu">
+            <i class="bi bi-list fs-4"></i>
           </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" href="#" data-modele="Basique">⚡ Basique — rapide et efficace</a></li>
-            <li><a class="dropdown-item" href="#" data-modele="Pro">🧠 Pro — pour les problèmes complexes</a></li>
-            <li><a class="dropdown-item" href="#" data-modele="Max">🚀 Max — analyses approfondies</a></li>
-          </ul>
+          <h6 class="m-0 fw-semibold" id="current-chat-title">Nouvelle discussion</h6>
         </div>
-
-        <!-- Toggle thème rapide -->
-        <button class="btn btn-outline-light btn-sm ms-2" id="btn-toggle-theme" title="Changer de thème">
-          <i class="bi bi-sun"></i>
+        <button class="btn btn-link text-secondary p-2 fs-6 d-flex align-items-center gap-1" id="btn-toggle-theme" title="Changer de thème" aria-label="Changer de thème">
+          <i class="bi bi-moon-stars"></i> Thème
         </button>
       </header>
 
-      <!-- ZONE 2 — Messages -->
-      <section class="chat-zone flex-grow-1 overflow-auto px-4 py-3" id="zone-messages">
-
-        <!-- Message de bienvenue -->
-        <div class="text-center text-secondary mt-5">
-          <i class="bi bi-calculator display-1"></i>
-          <h4 class="mt-3">Bienvenue sur AI Math Chatbot</h4>
-          <p>Posez une question, uploadez un exercice ou utilisez le micro pour commencer.</p>
+      <section class="chat-zone flex-grow-1 overflow-auto px-4 py-3" id="zone-messages" style="scroll-behavior: smooth;">
+        <div class="text-center text-secondary my-auto py-5" id="welcome-message">
+          <div class="fs-1 mb-2" style="color:var(--accent);">∫</div>
+          <h4 class="mt-1 fw-bold text-light">Bienvenue sur AI Math Chatbot</h4>
+          <p class="text-muted mx-auto" style="max-width: 500px;">
+            Posez votre question mathématique, importez un exercice ou utilisez votre micro pour démarrer.
+          </p>
         </div>
-
-        <!-- Exemple : message utilisateur -->
-        <!--
-        <div class="message message-user">
-          <div class="message-content">Résous x² + 2x + 1 = 0</div>
-        </div>
-
-        <div class="message message-assistant">
-          <div class="message-content">
-            <p>On reconnaît une identité remarquable :</p>
-            <p>$$x^2 + 2x + 1 = (x+1)^2$$</p>
-            <p>Donc $(x+1)^2 = 0 \Rightarrow x = -1$ (racine double).</p>
-          </div>
-          <div class="message-actions">
-            <i class="bi bi-hand-thumbs-up"></i>
-            <i class="bi bi-hand-thumbs-down"></i>
-            <i class="bi bi-clipboard"></i>
-          </div>
-        </div>
-        -->
       </section>
 
-      <!-- ZONE 3 — Barre de saisie -->
       <footer class="input-zone px-4 py-3">
+        <div class="mx-auto" style="max-width: 800px;">
+          <div id="apercu-fichiers" class="d-flex gap-2 mb-2 flex-wrap"></div>
 
-        <!-- Aperçu des fichiers sélectionnés -->
-        <div id="apercu-fichiers" class="d-flex gap-2 mb-2 flex-wrap"></div>
+          <div class="card shadow-lg border-secondary rounded-4 overflow-hidden bg-dark-custom">
+            <div class="input-group align-items-center px-3 py-2 flex-nowrap">
+              <button class="btn btn-link text-secondary p-2 shadow-none" id="btn-upload" title="Joindre un fichier" aria-label="Joindre un fichier">
+                <i class="bi bi-paperclip fs-5"></i>
+              </button>
+              <input type="file" id="input-fichier" multiple accept=".pdf,.jpg,.jpeg,.png,.docx" hidden>
 
-        <div class="input-group">
-          <button class="btn btn-outline-secondary" id="btn-upload" title="Joindre un fichier (max 5)">
-            <i class="bi bi-paperclip"></i>
-          </button>
-          <input type="file" id="input-fichier" multiple accept=".pdf,.jpg,.jpeg,.png,.docx" hidden>
+              <textarea class="form-control border-0 bg-transparent text-light shadow-none px-2" id="input-message" rows="1" placeholder="Écrivez votre question mathématique..." aria-label="Zone de saisie du message" style="resize: none; max-height: 200px;" required></textarea>
 
-          <textarea class="form-control" id="input-message" rows="1"
-                    placeholder="Écrivez votre question mathématique..."></textarea>
+              <button class="btn btn-link text-secondary p-2 shadow-none" id="btn-micro" title="Enregistrement vocal" aria-label="Utiliser le micro">
+                <i class="bi bi-mic fs-5"></i>
+              </button>
 
-          <button class="btn btn-outline-secondary" id="btn-micro" title="Enregistrement vocal">
-            <i class="bi bi-mic"></i>
-          </button>
+              <button class="btn btn-primary rounded-3 px-3 py-2 d-flex align-items-center gap-2" id="btn-envoyer" title="Envoyer" aria-label="Envoyer le message">
+                <span class="btn-label">Envoyer</span> <i class="bi bi-send-fill"></i>
+              </button>
+            </div>
+          </div>
 
-          <button class="btn btn-primary" id="btn-envoyer" title="Envoyer">
-            <i class="bi bi-send"></i>
-          </button>
+          <p class="text-center text-muted small mt-2 mb-0">
+            AI Math Chatbot peut faire des erreurs. Prenez soin de vérifier les étapes majeures.
+          </p>
         </div>
-
-        <p class="text-center text-secondary small mt-2 mb-0">
-          AI Math Chatbot peut faire des erreurs. Vérifiez les informations importantes.
-        </p>
       </footer>
-
     </main>
+
   </div>
 
-  <!-- Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <div class="d-none">
+    <span id="modele-actuel">Basique</span>
+    <a href="#" class="dropdown-item" data-modele="Basique">Basique</a>
+    <a href="#" class="dropdown-item" data-modele="Pro">Pro</a>
+    <a href="#" class="dropdown-item" data-modele="Max">Max</a>
+  </div>
 
-  <!-- Notre script -->
-  <script src="js/chat.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/theme.js"></script>
+  <script src="./js/audio.js"></script>
+  <script src="./js/chat.js"></script>
+  <script>
+    // Sidebar mobile (ouverture/fermeture)
+    const sidebarEl = document.getElementById("sidebar");
+    const overlayEl = document.getElementById("sidebar-overlay");
+    const btnToggle = document.getElementById("btn-toggle-sidebar");
+    function ouvrirSidebar(){ sidebarEl.classList.add("sidebar-ouverte"); overlayEl.classList.add("actif"); }
+    function fermerSidebar(){ sidebarEl.classList.remove("sidebar-ouverte"); overlayEl.classList.remove("actif"); }
+    if (btnToggle) btnToggle.addEventListener("click", ouvrirSidebar);
+    if (overlayEl) overlayEl.addEventListener("click", fermerSidebar);
+  </script>
 </body>
 </html>

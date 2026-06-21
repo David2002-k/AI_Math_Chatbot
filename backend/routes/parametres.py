@@ -1,11 +1,7 @@
 """
 routes/parametres.py
 ─────────────────────────────────────────────
-Gestion des préférences utilisateur (table parametres) :
-
-GET   /api/parametres   → récupérer mes préférences
-PATCH /api/parametres   → modifier thème / langue / modèle par défaut
-GET   /api/modeles       → lister les modèles IA disponibles (Basique/Pro/Max)
+Gestion des préférences utilisateur et modèles IA (table parametres & modeles_ia).
 ─────────────────────────────────────────────
 """
 
@@ -18,11 +14,15 @@ from models import Parametre, Utilisateur, ModeleIA
 from schemas import ParametreModification, ParametreReponse, ModeleIAReponse
 from dependencies import obtenir_utilisateur_courant
 
-router = APIRouter(prefix="/api/parametres", tags=["Paramètres"])
-router_modeles = APIRouter(prefix="/api/modeles", tags=["Modèles IA"])
+# Un seul routeur de base, on gèrera le préfixe propre à chaque groupe de routes
+router = APIRouter()
 
 
-@router.get("", response_model=ParametreReponse)
+# ══════════════════════════════════════════════
+# GESTION DES PRÉFÉRENCES (Prefix: /api/parametres)
+# ══════════════════════════════════════════════
+
+@router.get("/api/parametres", response_model=ParametreReponse, tags=["Paramètres"])
 def obtenir_parametres(
     utilisateur: Utilisateur = Depends(obtenir_utilisateur_courant),
     db: Session = Depends(get_db)
@@ -39,7 +39,7 @@ def obtenir_parametres(
     return parametre
 
 
-@router.patch("", response_model=ParametreReponse)
+@router.patch("/api/parametres", response_model=ParametreReponse, tags=["Paramètres"])
 def modifier_parametres(
     donnees: ParametreModification,
     utilisateur: Utilisateur = Depends(obtenir_utilisateur_courant),
@@ -60,7 +60,11 @@ def modifier_parametres(
     return parametre
 
 
-@router_modeles.get("", response_model=list[ModeleIAReponse])
+# ══════════════════════════════════════════════
+# MODÈLES IA (Prefix: /api/modeles)
+# ══════════════════════════════════════════════
+
+@router.get("/api/modeles", response_model=list[ModeleIAReponse], tags=["Modèles IA"])
 def lister_modeles(db: Session = Depends(get_db)):
     """Retourne les 3 niveaux IA actifs (Basique / Pro / Max)."""
     return db.query(ModeleIA).filter(ModeleIA.est_actif == True).all()

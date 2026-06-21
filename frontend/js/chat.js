@@ -1,573 +1,302 @@
-/* ─────────────────────────────────────────────
-   chat.js
-   Logique du frontend — AI Math Chatbot
-   Connecté au vrai backend FastAPI (voir backend/routes/)
-───────────────────────────────────────────── */
+/**
+ * js/chat.js
+ * ──────────────────────────────────────────────────────────────────
+ * Gère l'affichage des salons, le chargement de l'historique PostgreSQL,
+ * l'envoi des messages et le rendu dynamique KaTeX pour les mathématiques.
+ * ──────────────────────────────────────────────────────────────────
+ */
 
-const API_URL = "http://localhost:8000";
+document.addEventListener("DOMContentLoaded", () => {
+    const btnEnvoyer = document.getElementById("btn-envoyer");
+    const inputMessage = document.getElementById("input-message");
+    const zoneMessages = document.getElementById("zone-messages");
+    const welcomeMessage = document.getElementById("welcome-message");
+    const btnUpload = document.getElementById("btn-upload");
+    const inputFichier = document.getElementById("input-fichier");
+    const apercuFichiers = document.getElementById("apercu-fichiers");
+    const btnNouveauChat = document.getElementById("btn-nouveau-chat");
+    const listeChatsContainer = document.getElementById("liste-chats");
+    
+    let selectedFiles = [];
+    let currentChatId = null; // Stocke l'ID de la conversation active
 
-// ── Éléments du DOM ───────────────────────────
-const inputMessage     = document.getElementById("input-message");
-const btnEnvoyer       = document.getElementById("btn-envoyer");
-const zoneMessages     = document.getElementById("zone-messages");
-const btnUpload        = document.getElementById("btn-upload");
-const inputFichier     = document.getElementById("input-fichier");
-const apercuFichiers   = document.getElementById("apercu-fichiers");
-const btnMicro         = document.getElementById("btn-micro");
-const btnNouveauChat   = document.getElementById("btn-nouveau-chat");
-const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
-const sidebar          = document.querySelector(".sidebar");
-const modeleActuel     = document.getElementById("modele-actuel");
-const btnToggleTheme   = document.getElementById("btn-toggle-theme");
-const listeChats       = document.getElementById("liste-chats");
-const rechercheInput   = document.getElementById("recherche-chat");
-
-let fichiersSelectionnes = [];
-let chatActuelId = null;
-let modeleIdActuel = null;
-let modelesDisponibles = [];
-
-
-// ══════════════════════════════════════════════
-// AUTHENTIFICATION — récupère ou crée un token
-// ══════════════════════════════════════════════
-async function obtenirToken() {
-  let token = localStorage.getItem("token");
-  if (token) return token;
-
-  // Premier passage : crée un utilisateur anonyme côté backend
-  const reponse = await fetch(`${API_URL}/api/auth/anonyme`, { method: "POST" });
-  const data = await reponse.json();
-  localStorage.setItem("token", data.access_token);
-  return data.access_token;
-}
-
-async function appelAPI(chemin, options = {}) {
-  const token = await obtenirToken();
-  const headers = {
-    "Authorization": `Bearer ${token}`,
-    ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-    ...options.headers
-  };
-
-  const reponse = await fetch(`${API_URL}${chemin}`, { ...options, headers });
-
-  if (!reponse.ok) {
-    const erreur = await reponse.json().catch(() => ({ detail: "Erreur serveur" }));
-    throw new Error(erreur.detail || "Erreur API");
-  }
-
-  return reponse.status === 204 ? null : reponse.json();
-}
-
-
-// ══════════════════════════════════════════════
-// THÈME — clair/sombre, synchronisé avec /api/parametres
-// ══════════════════════════════════════════════
-function appliquerThemeLocal(theme) {
-  document.documentElement.setAttribute("data-theme", theme);
-  localStorage.setItem("theme", theme);
-  if (btnToggleTheme) {
-    btnToggleTheme.querySelector("i").className = theme === "sombre" ? "bi bi-sun" : "bi bi-moon";
-  }
-}
-
-appliquerThemeLocal(localStorage.getItem("theme") || "sombre");
-
-if (btnToggleTheme) {
-  btnToggleTheme.addEventListener("click", async () => {
-    const actuel = document.documentElement.getAttribute("data-theme");
-    const nouveau = actuel === "sombre" ? "clair" : "sombre";
-    appliquerThemeLocal(nouveau);
-    try {
-      await appelAPI("/api/parametres", {
-        method: "PATCH",
-        body: JSON.stringify({ theme: nouveau })
-      });
-    } catch (e) { console.error(e); }
-  });
-}
-
-
-// ══════════════════════════════════════════════
-// CHARGEMENT INITIAL
-// ══════════════════════════════════════════════
-async function initialiser() {
-  try {
-    modelesDisponibles = await appelAPI("/api/modeles");
-    if (modelesDisponibles.length > 0) {
-      modeleIdActuel = modelesDisponibles.find(m => m.nom === "Basique")?.id || modelesDisponibles[0].id;
-    }
-  } catch (e) {
-    console.error("Impossible de charger les modèles IA :", e);
-  }
-
-  await chargerHistorique();
-}
-
-initialiser();
-
-
-// ══════════════════════════════════════════════
-// HISTORIQUE DES CONVERSATIONS
-// ══════════════════════════════════════════════
-async function chargerHistorique() {
-  try {
-    const chats = await appelAPI("/api/chats");
-    afficherHistorique(chats);
-  } catch (e) {
-    console.error("Erreur chargement historique :", e);
-  }
-}
-
-function afficherHistorique(chats) {
-  listeChats.innerHTML = "";
-
-  if (chats.length === 0) {
-    listeChats.innerHTML = `<div class="text-secondary small px-2 py-2">Aucune conversation pour l'instant.</div>`;
-    return;
-  }
-
-  const epingles = chats.filter(c => c.est_epingle);
-  const reste = chats.filter(c => !c.est_epingle);
-
-  // ── Section Épinglés (toujours en premier, comme ChatGPT) ──
-  if (epingles.length > 0) {
-    ajouterSection("📌 Épinglés", epingles);
-  }
-
-  // ── Regroupe le reste par période (Aujourd'hui, Hier, 7 jours...) ──
-  const groupes = grouperParPeriode(reste);
-
-  for (const [titreGroupe, chatsGroupe] of groupes) {
-    if (chatsGroupe.length > 0) {
-      ajouterSection(titreGroupe, chatsGroupe);
-    }
-  }
-}
-
-function ajouterSection(titre, chats) {
-  const titreDiv = document.createElement("div");
-  titreDiv.className = "historique-section-titre";
-  titreDiv.textContent = titre;
-  listeChats.appendChild(titreDiv);
-
-  chats.forEach(chat => listeChats.appendChild(creerElementChat(chat)));
-}
-
-// Regroupe les chats par période relative à aujourd'hui, comme ChatGPT.
-// Retourne un Map ordonné : "Aujourd'hui" → [...], "Hier" → [...], etc.
-function grouperParPeriode(chats) {
-  const maintenant = new Date();
-  const debutAujourdhui = new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate());
-  const debutHier = new Date(debutAujourdhui);
-  debutHier.setDate(debutHier.getDate() - 1);
-  const debut7Jours = new Date(debutAujourdhui);
-  debut7Jours.setDate(debut7Jours.getDate() - 7);
-  const debut30Jours = new Date(debutAujourdhui);
-  debut30Jours.setDate(debut30Jours.getDate() - 30);
-
-  const groupes = new Map([
-    ["Aujourd'hui", []],
-    ["Hier", []],
-    ["7 jours précédents", []],
-    ["30 jours précédents", []],
-  ]);
-
-  // Tri du plus récent au plus ancien
-  const chatsTries = [...chats].sort(
-    (a, b) => new Date(b.date_modification) - new Date(a.date_modification)
-  );
-
-  for (const chat of chatsTries) {
-    const dateChat = new Date(chat.date_modification);
-
-    if (dateChat >= debutAujourdhui) {
-      groupes.get("Aujourd'hui").push(chat);
-    } else if (dateChat >= debutHier) {
-      groupes.get("Hier").push(chat);
-    } else if (dateChat >= debut7Jours) {
-      groupes.get("7 jours précédents").push(chat);
-    } else if (dateChat >= debut30Jours) {
-      groupes.get("30 jours précédents").push(chat);
-    } else {
-      // Groupé par mois/année, ex: "Mars 2026" — comme ChatGPT pour les anciens chats
-      const cle = dateChat.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-      const cleCapitalisee = cle.charAt(0).toUpperCase() + cle.slice(1);
-      if (!groupes.has(cleCapitalisee)) groupes.set(cleCapitalisee, []);
-      groupes.get(cleCapitalisee).push(chat);
-    }
-  }
-
-  return groupes;
-}
-
-function creerElementChat(chat) {
-  const div = document.createElement("div");
-  div.className = `chat-item d-flex align-items-center justify-content-between${chat.id === chatActuelId ? " active" : ""}`;
-  div.dataset.chatId = chat.id;
-  div.title = chat.titre;
-
-  div.innerHTML = `
-    <span class="chat-titre-tronque"><i class="bi bi-chat-left-text me-2"></i>${chat.titre}</span>
-    <div class="chat-actions">
-      <i class="bi ${chat.est_epingle ? "bi-pin-angle-fill" : "bi-pin-angle"}" title="${chat.est_epingle ? "Désépingler" : "Épingler"}" data-action="epingler"></i>
-      <i class="bi bi-pencil" title="Renommer" data-action="renommer"></i>
-      <i class="bi ${chat.est_archive ? "bi-box-arrow-up" : "bi-archive"}" title="${chat.est_archive ? "Désarchiver" : "Archiver"}" data-action="archiver"></i>
-      <i class="bi bi-trash" title="Supprimer" data-action="supprimer"></i>
-    </div>
-  `;
-
-  div.addEventListener("click", (e) => {
-    if (e.target.closest("[data-action]")) return;
-    ouvrirChat(chat.id);
-  });
-
-  div.querySelector('[data-action="epingler"]').addEventListener("click", async (e) => {
-    e.stopPropagation();
-    await appelAPI(`/api/chats/${chat.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ est_epingle: !chat.est_epingle })
-    });
-    chargerHistorique();
-  });
-
-  div.querySelector('[data-action="archiver"]').addEventListener("click", async (e) => {
-    e.stopPropagation();
-    await appelAPI(`/api/chats/${chat.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ est_archive: !chat.est_archive })
-    });
-    if (chat.id === chatActuelId) demarrerNouvelleConversation();
-    chargerHistorique();
-  });
-
-  div.querySelector('[data-action="renommer"]').addEventListener("click", async (e) => {
-    e.stopPropagation();
-    const nouveauTitre = prompt("Nouveau nom de la conversation :", chat.titre);
-    if (nouveauTitre && nouveauTitre.trim()) {
-      await appelAPI(`/api/chats/${chat.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ titre: nouveauTitre.trim() })
-      });
-      chargerHistorique();
-    }
-  });
-
-  div.querySelector('[data-action="supprimer"]').addEventListener("click", async (e) => {
-    e.stopPropagation();
-    if (confirm("Supprimer définitivement cette conversation ?")) {
-      await appelAPI(`/api/chats/${chat.id}`, { method: "DELETE" });
-      if (chat.id === chatActuelId) demarrerNouvelleConversation();
-      chargerHistorique();
-    }
-  });
-
-  return div;
-}
-
-// Recherche dans l'historique
-if (rechercheInput) {
-  let timeoutRecherche;
-  rechercheInput.addEventListener("input", () => {
-    clearTimeout(timeoutRecherche);
-    timeoutRecherche = setTimeout(async () => {
-      const q = rechercheInput.value.trim();
-      if (!q) return chargerHistorique();
-      try {
-        const resultats = await appelAPI(`/api/chats/recherche?q=${encodeURIComponent(q)}`);
-        afficherHistorique(resultats);
-      } catch (e) { console.error(e); }
-    }, 300);
-  });
-}
-
-
-// ══════════════════════════════════════════════
-// OUVRIR UNE CONVERSATION EXISTANTE
-// ══════════════════════════════════════════════
-async function ouvrirChat(chatId) {
-  chatActuelId = chatId;
-
-  document.querySelectorAll(".chat-item").forEach(i => {
-    i.classList.toggle("active", parseInt(i.dataset.chatId) === chatId);
-  });
-
-  try {
-    const messages = await appelAPI(`/api/chats/${chatId}`);
-    zoneMessages.innerHTML = "";
-    messages.forEach(m => afficherMessage(m.role, m.contenu, m.id, m.reaction));
-  } catch (e) {
-    console.error("Erreur chargement messages :", e);
-  }
-}
-
-
-// ══════════════════════════════════════════════
-// NOUVELLE CONVERSATION
-// ══════════════════════════════════════════════
-function demarrerNouvelleConversation() {
-  chatActuelId = null;
-  zoneMessages.innerHTML = `
-    <div class="text-center text-secondary mt-5">
-      <i class="bi bi-calculator display-1"></i>
-      <h4 class="mt-3">Bienvenue sur AI Math Chatbot</h4>
-      <p>Posez une question, uploadez un exercice ou utilisez le micro pour commencer.</p>
-    </div>
-  `;
-  document.querySelectorAll(".chat-item").forEach(i => i.classList.remove("active"));
-}
-
-btnNouveauChat.addEventListener("click", demarrerNouvelleConversation);
-
-
-// ══════════════════════════════════════════════
-// AGRANDISSEMENT AUTOMATIQUE DU TEXTAREA
-// ══════════════════════════════════════════════
-inputMessage.addEventListener("input", () => {
-  inputMessage.style.height = "auto";
-  inputMessage.style.height = inputMessage.scrollHeight + "px";
-});
-
-inputMessage.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    envoyerMessage();
-  }
-});
-
-
-// ══════════════════════════════════════════════
-// ENVOI D'UN MESSAGE — appelle /api/chats puis /api/messages
-// ══════════════════════════════════════════════
-btnEnvoyer.addEventListener("click", envoyerMessage);
-
-async function envoyerMessage() {
-  const texte = inputMessage.value.trim();
-  if (!texte && fichiersSelectionnes.length === 0) return;
-
-  const bienvenue = zoneMessages.querySelector(".text-center.text-secondary");
-  if (bienvenue) bienvenue.remove();
-
-  afficherMessage("user", texte);
-
-  inputMessage.value = "";
-  inputMessage.style.height = "auto";
-  const fichiersAEnvoyer = [...fichiersSelectionnes];
-  fichiersSelectionnes = [];
-  apercuFichiers.innerHTML = "";
-
-  const indicateurId = afficherMessage("assistant", "<em>L'IA réfléchit...</em>");
-
-  try {
-    // 1. Crée la conversation si c'est la première fois
-    if (!chatActuelId) {
-      const nouveauChat = await appelAPI("/api/chats", {
-        method: "POST",
-        body: JSON.stringify({ modele_id: modeleIdActuel })
-      });
-      chatActuelId = nouveauChat.id;
+    // ─── Rendu KaTeX sécurisé : ne casse jamais l'affichage du texte si KaTeX est indisponible ───
+    function rendreMaths(element) {
+        if (typeof renderMathInElement !== "function") {
+            console.warn("KaTeX non chargé : les formules resteront en texte brut.");
+            return;
+        }
+        try {
+            renderMathInElement(element, {
+                delimiters: [
+                    {left: "$$", right: "$$", display: true},
+                    {left: "\\[", right: "\\]", display: true},
+                    {left: "$", right: "$", display: false},
+                    {left: "\\(", right: "\\)", display: false}
+                ],
+                throwOnError: false
+            });
+        } catch (err) {
+            console.warn("Erreur de rendu KaTeX (ignorée) :", err);
+        }
     }
 
-    // 2. Envoie le message à l'IA
-    const messageIA = await appelAPI("/api/messages", {
-      method: "POST",
-      body: JSON.stringify({
-        chat_id: chatActuelId,
-        contenu: texte,
-        modele_id: modeleIdActuel
-      })
-    });
+    // Au démarrage, on charge l'historique de l'utilisateur connecté
+    chargerHistoriqueChats();
 
-    // 3. Upload des fichiers liés (si présents) — sur le message IA reçu
-    if (fichiersAEnvoyer.length > 0) {
-      const formData = new FormData();
-      fichiersAEnvoyer.forEach(f => formData.append("fichiers", f));
-      await appelAPI(`/api/fichiers/upload?message_id=${messageIA.id}`, {
-        method: "POST",
-        body: formData
-      });
-    }
-
-    document.getElementById(indicateurId)?.remove();
-    afficherMessage("assistant", messageIA.contenu, messageIA.id, messageIA.reaction);
-
-    chargerHistorique();
-
-  } catch (e) {
-    document.getElementById(indicateurId)?.remove();
-    afficherMessage("assistant", `⚠️ Erreur : ${e.message}`);
-    console.error(e);
-  }
-}
-
-
-// ══════════════════════════════════════════════
-// AFFICHAGE D'UN MESSAGE DANS LE CHAT
-// ══════════════════════════════════════════════
-function afficherMessage(role, contenu, messageId = null, reaction = null) {
-  const idUnique = "msg-" + (messageId || Date.now());
-  const div = document.createElement("div");
-  div.id = idUnique;
-  div.className = `message message-${role === "user" ? "user" : "assistant"}`;
-
-  const contentDiv = document.createElement("div");
-  contentDiv.className = "message-content";
-  contentDiv.innerHTML = contenu;
-  div.appendChild(contentDiv);
-
-  if (role === "assistant" && messageId) {
-    const actions = document.createElement("div");
-    actions.className = "message-actions";
-    actions.innerHTML = `
-      <i class="bi bi-hand-thumbs-up${reaction === "like" ? " active-like" : ""}" title="Utile" data-reaction="like"></i>
-      <i class="bi bi-hand-thumbs-down${reaction === "dislike" ? " active-dislike" : ""}" title="Pas utile" data-reaction="dislike"></i>
-      <i class="bi bi-clipboard" title="Copier"></i>
-    `;
-    div.appendChild(actions);
-
-    const btnLike = actions.querySelector('[data-reaction="like"]');
-    const btnDislike = actions.querySelector('[data-reaction="dislike"]');
-
-    btnLike.addEventListener("click", async () => {
-      const actif = btnLike.classList.toggle("active-like");
-      btnDislike.classList.remove("active-dislike");
-      await appelAPI(`/api/messages/${messageId}/reaction`, {
-        method: "PATCH",
-        body: JSON.stringify({ reaction: actif ? "like" : null })
-      });
-    });
-
-    btnDislike.addEventListener("click", async () => {
-      const actif = btnDislike.classList.toggle("active-dislike");
-      btnLike.classList.remove("active-like");
-      await appelAPI(`/api/messages/${messageId}/reaction`, {
-        method: "PATCH",
-        body: JSON.stringify({ reaction: actif ? "dislike" : null })
-      });
-    });
-
-    actions.querySelector(".bi-clipboard").addEventListener("click", (e) => {
-      navigator.clipboard.writeText(contentDiv.innerText);
-      e.target.className = "bi bi-clipboard-check";
-      setTimeout(() => { e.target.className = "bi bi-clipboard"; }, 1500);
-    });
-  }
-
-  zoneMessages.appendChild(div);
-  zoneMessages.scrollTop = zoneMessages.scrollHeight;
-
-  rendreLatex(contentDiv);
-
-  return idUnique;
-}
-
-// Rend les formules LaTeX ($...$ et $$...$$) avec KaTeX.
-// Réessaie si la librairie n'est pas encore chargée (script "defer").
-function rendreLatex(element, tentatives = 0) {
-  if (window.renderMathInElement) {
-    renderMathInElement(element, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false }
-      ],
-      throwOnError: false
-    });
-  } else if (tentatives < 10) {
-    setTimeout(() => rendreLatex(element, tentatives + 1), 200);
-  }
-
-
-// ══════════════════════════════════════════════
-// UPLOAD DE FICHIERS (max 5) — envoyés avec le prochain message
-// ══════════════════════════════════════════════
-btnUpload.addEventListener("click", () => inputFichier.click());
-
-inputFichier.addEventListener("change", () => {
-  const fichiers = Array.from(inputFichier.files);
-
-  if (fichiersSelectionnes.length + fichiers.length > 5) {
-    alert("Vous pouvez joindre au maximum 5 fichiers.");
-    return;
-  }
-
-  fichiers.forEach(fichier => {
-    fichiersSelectionnes.push(fichier);
-    afficherApercuFichier(fichier);
-  });
-
-  inputFichier.value = "";
-});
-
-function afficherApercuFichier(fichier) {
-  const badge = document.createElement("div");
-  badge.className = "fichier-badge";
-
-  const icone = fichier.type.includes("pdf") ? "bi-file-earmark-pdf"
-              : fichier.type.includes("image") ? "bi-file-earmark-image"
-              : "bi-file-earmark-word";
-
-  badge.innerHTML = `
-    <i class="bi ${icone}"></i>
-    <span>${fichier.name}</span>
-    <i class="bi bi-x-circle" title="Retirer"></i>
-  `;
-
-  badge.querySelector(".bi-x-circle").addEventListener("click", () => {
-    fichiersSelectionnes = fichiersSelectionnes.filter(f => f !== fichier);
-    badge.remove();
-  });
-
-  apercuFichiers.appendChild(badge);
-}
-
-
-// ══════════════════════════════════════════════
-// ENREGISTREMENT VOCAL (micro) — Whisper à connecter
-// ══════════════════════════════════════════════
-let enregistrementEnCours = false;
-
-btnMicro.addEventListener("click", () => {
-  enregistrementEnCours = !enregistrementEnCours;
-  btnMicro.classList.toggle("recording", enregistrementEnCours);
-
-  if (enregistrementEnCours) {
-    btnMicro.querySelector("i").className = "bi bi-stop-fill";
-    // TODO : MediaRecorder API → envoyer à un futur /api/transcription (Whisper)
-  } else {
-    btnMicro.querySelector("i").className = "bi bi-mic";
-  }
-});
-
-
-// ══════════════════════════════════════════════
-// AFFICHAGE/MASQUAGE BARRE LATÉRALE (mobile)
-// ══════════════════════════════════════════════
-if (btnToggleSidebar) {
-  btnToggleSidebar.addEventListener("click", () => {
-    sidebar.classList.toggle("show");
-  });
-}
-
-
-// ══════════════════════════════════════════════
-// SÉLECTION DU MODÈLE IA (Basique/Pro/Max)
-// ══════════════════════════════════════════════
-document.querySelectorAll("[data-modele]").forEach(item => {
-  item.addEventListener("click", async (e) => {
-    e.preventDefault();
-    const nomModele = item.getAttribute("data-modele");
-    modeleActuel.textContent = nomModele;
-
-    const modele = modelesDisponibles.find(m => m.nom === nomModele);
-    if (modele) {
-      modeleIdActuel = modele.id;
-      if (chatActuelId) {
-        await appelAPI(`/api/chats/${chatActuelId}`, {
-          method: "PATCH",
-          body: JSON.stringify({ modele_id: modele.id })
+    // ─── Recherche dans l'historique (filtrage côté client) ───
+    const inputRecherche = document.getElementById("recherche-chat");
+    if (inputRecherche) {
+        inputRecherche.addEventListener("input", () => {
+            const terme = inputRecherche.value.trim().toLowerCase();
+            document.querySelectorAll("#liste-chats .chat-sidebar-item").forEach(item => {
+                const titre = item.textContent.trim().toLowerCase();
+                item.style.display = titre.includes(terme) ? "" : "none";
+            });
         });
-      }
     }
-  });
+
+    // ─── 1. CHARGEMENT DE L'HISTORIQUE (CORRECTION DU BLOCAGE) ───
+    async function chargerHistoriqueChats() {
+        if (!listeChatsContainer) return;
+
+        try {
+            const response = await fetch(`${API_URL}/api/chats`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${localStorage.getItem("token")}`
+                }
+            });
+
+            if (response.status === 401) {
+                listeChatsContainer.innerHTML = `<div class="text-warning small px-2">Veuillez vous connecter.</div>`;
+                return;
+            }
+
+            if (!response.ok) throw new Error("Erreur serveur lors du chargement");
+
+            const chats = await response.json();
+            listeChatsContainer.innerHTML = ""; // On efface le message "Chargement de l'historique..."
+
+            if (chats.length === 0) {
+                listeChatsContainer.innerHTML = `<div class="text-secondary small px-2">Aucune conversation</div>`;
+                return;
+            }
+
+            // Génération dynamique des salons dans la barre latérale
+            chats.forEach(chat => {
+                const chatItem = document.createElement("div");
+                chatItem.className = "chat-sidebar-item p-2 mb-1 rounded text-light small d-flex align-items-center gap-2";
+                chatItem.style.cursor = "pointer";
+                chatItem.innerHTML = `<i class="bi bi-chat-left-text text-secondary"></i> <span class="text-truncate">${chat.titre || "Discussion Math"}</span>`;
+                
+                chatItem.addEventListener("click", () => selectionnerChat(chat.id, chat.titre));
+                listeChatsContainer.appendChild(chatItem);
+            });
+
+        } catch (error) {
+            console.error("Erreur historique :", error);
+            listeChatsContainer.innerHTML = `<div class="text-danger small px-2">Erreur de chargement</div>`;
+        }
+    }
+
+    // Sélectionner un salon et charger ses messages passés
+    async function selectionnerChat(chatId, titre) {
+        currentChatId = chatId;
+        document.getElementById("current-chat-title").innerText = titre;
+        if (welcomeMessage) welcomeMessage.remove();
+        zoneMessages.innerHTML = `<div class="text-center py-3 text-secondary"><div class="spinner-border spinner-border-sm text-primary"></div> Chargement...</div>`;
+
+        try {
+            const response = await fetch(`${API_URL}/api/chats/${chatId}`, {
+                headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+            });
+            if (!response.ok) {
+                const erreurData = await response.json().catch(() => ({}));
+                throw new Error(erreurData.detail || `Erreur serveur (${response.status})`);
+            }
+            
+            const messages = await response.json();
+            zoneMessages.innerHTML = "";
+
+            messages.forEach(msg => {
+                if (msg.role === "user") {
+                    appendMessage(msg.contenu, "user");
+                } else {
+                    appendMessage(formaterTexteIA(msg.contenu), "bot");
+                }
+            });
+
+            // Forcer le rendu mathématique global sur l'historique chargé
+            rendreMaths(zoneMessages);
+
+        } catch (err) {
+            console.error("Erreur historique (détail) :", err);
+            zoneMessages.innerHTML = `<div class="text-danger small text-center py-3">Erreur : ${err.message || "récupération des messages impossible"}</div>`;
+        }
+    }
+
+    // ─── 2. ENVOI DE MESSAGE ───
+    async function gererEnvoi() {
+        const text = inputMessage.value.trim();
+        if (!text && selectedFiles.length === 0) return;
+
+        if (welcomeMessage) welcomeMessage.remove();
+
+        // Si aucun salon n'est ouvert, on en crée un par défaut en BDD de manière transparente
+        if (!currentChatId) {
+            try {
+                const response = await fetch(`${API_URL}/api/chats`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${localStorage.getItem("token")}`
+                    },
+                    body: JSON.stringify({ titre: text.substring(0, 25) || "Nouvelle discussion" })
+                });
+                if (response.status === 401) {
+                    window.location.href = "pages/connexion.html";
+                    return;
+                }
+                const nouveauChat = await response.json();
+                currentChatId = nouveauChat.id;
+                chargerHistoriqueChats(); // Rafraîchit la sidebar
+            } catch (err) {
+                console.error("Impossible de créer le salon :", err);
+                alert("❌ Impossible de créer la conversation. Vérifie que le serveur backend tourne bien.");
+                return;
+            }
+        }
+
+        // Afficher le message utilisateur
+        let userContent = text;
+        if (selectedFiles.length > 0) {
+            userContent += `<br><small class="text-info">📎 ${selectedFiles.length} fichier(s) joint(s)</small>`;
+            for (let f of selectedFiles) {
+                await uploadFileBackend(f, currentChatId); // Passage du currentChatId requis
+            }
+        }
+        
+        appendMessage(userContent, "user");
+        inputMessage.value = "";
+        selectedFiles = [];
+        apercuFichiers.innerHTML = "";
+        inputMessage.style.height = "auto";
+
+        // Indicateur de chargement
+        const loadingId = appendMessage(`<div class="typing-dots"><span></span><span></span><span></span></div>`, "bot");
+
+        // Lancer la requête API vers Python
+        const data = await sendChatMessage(currentChatId, text, null);
+        if (!data) return; // 401 : redirection déjà en cours vers la connexion
+
+        // Remplacer l'indicateur par la réponse finale de Gemini
+        const botBubble = document.getElementById(loadingId);
+        if (botBubble) {
+            const contenu = data.contenu || "Désolé, je n'ai pas pu générer de réponse.";
+            botBubble.querySelector(".bubble").innerHTML = formaterTexteIA(contenu);
+            
+            // Déclenchement de KaTeX pour les formules
+            rendreMaths(botBubble);
+        }
+        
+        zoneMessages.scrollTop = zoneMessages.scrollHeight;
+    }
+
+    // Déclencheurs d'envoi
+    if (btnEnvoyer) btnEnvoyer.addEventListener("click", gererEnvoi);
+    if (inputMessage) {
+        inputMessage.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                gererEnvoi();
+            }
+        });
+    }
+
+    // ─── 3. AJOUT DE BULLE DANS L'ECRAN ───
+    // ─── Mise en forme du texte généré par l'IA (espacement, gras, listes) ───
+    function formaterTexteIA(texte) {
+        if (!texte) return "";
+
+        // ── Étape 1 : on extrait les blocs LaTeX (\[...\] et \(...\)) AVANT tout traitement,
+        // pour que le formatage markdown (retours à la ligne, listes...) ne les abîme jamais.
+        const segmentsMath = [];
+        let proteges = texte.replace(/\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/g, (match) => {
+            segmentsMath.push(match);
+            return `@@MATH${segmentsMath.length - 1}@@`;
+        });
+
+        // On échappe seulement < et > (anti-XSS) sur le texte restant, jamais & : LaTeX l'utilise comme séparateur de colonnes
+        let html = proteges.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+        // ## Titres markdown → <h6>
+        html = html.replace(/^#{1,6}\s+(.+)$/gm, "<h6 class='fw-bold mt-3 mb-2'>$1</h6>");
+        // **gras** → <strong>
+        html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+        // Listes à puces "- item" ou "* item" en début de ligne
+        html = html.replace(/^[-*]\s+(.+)$/gm, "<li>$1</li>");
+        html = html.replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul class="mb-2 ps-3">${m.replace(/\n/g, "")}</ul>`);
+        // Lignes horizontales "---" → séparateur visuel
+        html = html.replace(/^---+$/gm, "<hr class='border-secondary my-3'>");
+        // Doubles retours à la ligne → nouveau paragraphe, simple retour → <br>
+        html = html.split(/\n{2,}/).map(p => `<p class="mb-2">${p.replace(/\n/g, "<br>")}</p>`).join("");
+
+        // ── Étape 2 : on replace les blocs LaTeX, intacts, à la place des marqueurs ──
+        html = html.replace(/@@MATH(\d+)@@/g, (_, i) => segmentsMath[parseInt(i)]);
+
+        return html;
+    }
+
+    function appendMessage(htmlContent, sender) {
+        const uniqueId = "msg-" + Date.now() + Math.floor(Math.random() * 1000);
+        const msgContainer = document.createElement("div");
+        msgContainer.id = uniqueId;
+        msgContainer.className = `msg-container msg-${sender}`;
+        
+        msgContainer.innerHTML = `<div class="bubble">${htmlContent}</div>`;
+        zoneMessages.appendChild(msgContainer);
+        zoneMessages.scrollTop = zoneMessages.scrollHeight;
+        return uniqueId;
+    }
+
+    // ─── 4. GESTION DE L'UPLOAD DE FICHIERS ───
+    if (btnUpload && inputFichier) {
+        btnUpload.addEventListener("click", () => inputFichier.click());
+        inputFichier.addEventListener("change", (e) => {
+            selectedFiles = Array.from(e.target.files);
+            apercuFichiers.innerHTML = "";
+            selectedFiles.forEach((file) => {
+                const badge = document.createElement("span");
+                badge.className = "badge bg-secondary d-flex align-items-center gap-1 p-2";
+                badge.innerHTML = `<i class="bi bi-file-earmark-check"></i> ${file.name}`;
+                apercuFichiers.appendChild(badge);
+            });
+        });
+    }
+
+    // ─── 5. BOUTON NOUVELLE CONVERSATION ───
+    if (btnNouveauChat) {
+        btnNouveauChat.addEventListener("click", () => {
+            currentChatId = null;
+            document.getElementById("current-chat-title").innerText = "Nouvelle discussion";
+            zoneMessages.innerHTML = `
+                <div class="text-center text-secondary my-auto py-5" id="welcome-message">
+                  <i class="bi bi-calculator-fill display-3 text-primary opacity-75"></i>
+                  <h4 class="mt-3 fw-bold text-light">Bienvenue sur AI Math Chatbot 👋</h4>
+                  <p class="text-muted mx-auto" style="max-width: 500px;">
+                    Posez votre question mathématique, importez un exercice ou utilisez votre micro pour démarrer.
+                  </p>
+                </div>`;
+        });
+    }
+
+    // ─── 6. SÉLECTEUR DE MODÈLE IA ───
+    document.querySelectorAll(".dropdown-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+            e.preventDefault();
+            const model = e.target.getAttribute("data-modele");
+            document.getElementById("modele-actuel").innerText = model;
+        });
+    });
 });

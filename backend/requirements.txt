@@ -10,3 +10,5 @@ bcrypt
 pyjwt
 pypdf
 python-docx
+requests
+
