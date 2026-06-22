@@ -11,4 +11,4 @@ pyjwt
 pypdf
 python-docx
 requests
-
+Pillow

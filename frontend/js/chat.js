@@ -50,11 +50,18 @@ document.addEventListener("DOMContentLoaded", () => {
         inputRecherche.addEventListener("input", () => {
             const terme = inputRecherche.value.trim().toLowerCase();
             document.querySelectorAll("#liste-chats .chat-sidebar-item").forEach(item => {
-                const titre = item.textContent.trim().toLowerCase();
+                // On compare uniquement le titre (data-titre), jamais le texte complet du
+                // bloc (qui inclurait des nœuds invisibles comme le menu contextuel).
+                const titre = (item.dataset.titre || "").toLowerCase();
                 item.style.display = titre.includes(terme) ? "" : "none";
             });
         });
     }
+
+    // Ferme tout menu contextuel ouvert dès qu'on clique ailleurs sur la page
+    document.addEventListener("click", () => {
+        document.querySelectorAll(".menu-chat-contextuel.ouvert").forEach(m => m.classList.remove("ouvert"));
+    });
 
     // ─── 1. CHARGEMENT DE L'HISTORIQUE (CORRECTION DU BLOCAGE) ───
     async function chargerHistoriqueChats() {
@@ -69,7 +76,10 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             if (response.status === 401) {
-                listeChatsContainer.innerHTML = `<div class="text-warning small px-2">Veuillez vous connecter.</div>`;
+                // Token périmé / session perdue dès l'ouverture de l'app :
+                // on purge et on renvoie vers la connexion plutôt que de laisser
+                // une interface à moitié fonctionnelle (historique faussement vide).
+                redirigerVersConnexion();
                 return;
             }
 
@@ -87,10 +97,66 @@ document.addEventListener("DOMContentLoaded", () => {
             chats.forEach(chat => {
                 const chatItem = document.createElement("div");
                 chatItem.className = "chat-sidebar-item p-2 mb-1 rounded text-light small d-flex align-items-center gap-2";
+                chatItem.dataset.chatId = chat.id;
+                chatItem.dataset.titre = chat.titre || "Discussion Math";
                 chatItem.style.cursor = "pointer";
-                chatItem.innerHTML = `<i class="bi bi-chat-left-text text-secondary"></i> <span class="text-truncate">${chat.titre || "Discussion Math"}</span>`;
-                
+                if (chat.id === currentChatId) chatItem.classList.add("actif");
+
+                const titreSpan = document.createElement("span");
+                titreSpan.className = "text-truncate flex-grow-1";
+                titreSpan.textContent = chat.titre || "Discussion Math";
+
+                const icone = document.createElement("i");
+                icone.className = "bi bi-chat-left-text text-secondary";
+
+                const btnMenu = document.createElement("button");
+                btnMenu.className = "btn btn-sm btn-menu-chat p-0";
+                btnMenu.innerHTML = `<i class="bi bi-three-dots"></i>`;
+                btnMenu.title = "Renommer ou supprimer cette conversation";
+                btnMenu.setAttribute("aria-label", "Renommer ou supprimer cette conversation");
+
+                // Menu contextuel clair : deux actions explicites, pas de prompt() ambigu.
+                const menu = document.createElement("ul");
+                menu.className = "menu-chat-contextuel";
+
+                const itemRenommer = document.createElement("li");
+                itemRenommer.innerHTML = `<button type="button"><i class="bi bi-pencil"></i> Renommer</button>`;
+
+                const itemSupprimer = document.createElement("li");
+                itemSupprimer.innerHTML = `<button type="button" class="danger"><i class="bi bi-trash3"></i> Supprimer</button>`;
+
+                menu.appendChild(itemRenommer);
+                menu.appendChild(itemSupprimer);
+
+                chatItem.appendChild(icone);
+                chatItem.appendChild(titreSpan);
+                chatItem.appendChild(btnMenu);
+                chatItem.appendChild(menu);
+
                 chatItem.addEventListener("click", () => selectionnerChat(chat.id, chat.titre));
+
+                btnMenu.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    const etaitOuvert = menu.classList.contains("ouvert");
+                    document.querySelectorAll(".menu-chat-contextuel.ouvert").forEach(m => m.classList.remove("ouvert"));
+                    if (!etaitOuvert) menu.classList.add("ouvert");
+                });
+
+                itemRenommer.querySelector("button").addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    menu.classList.remove("ouvert");
+                    const nouveauTitre = prompt("Nouveau nom de la conversation :", chat.titre);
+                    if (nouveauTitre === null || nouveauTitre.trim() === "") return;
+                    await renommerChat(chat.id, nouveauTitre.trim());
+                });
+
+                itemSupprimer.querySelector("button").addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    menu.classList.remove("ouvert");
+                    if (!confirm(`Supprimer définitivement "${chat.titre}" ?`)) return;
+                    await supprimerChat(chat.id);
+                });
+
                 listeChatsContainer.appendChild(chatItem);
             });
 
@@ -100,10 +166,49 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // Renomme une conversation (PATCH /api/chats/{id})
+    async function renommerChat(chatId, nouveauTitre) {
+        try {
+            await fetch(`${API_URL}/api/chats/${chatId}`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${localStorage.getItem("token")}`
+                },
+                body: JSON.stringify({ titre: nouveauTitre })
+            });
+            if (chatId === currentChatId) {
+                document.getElementById("current-chat-title").innerText = nouveauTitre;
+            }
+            chargerHistoriqueChats();
+        } catch (err) {
+            alert("❌ Impossible de renommer la conversation.");
+        }
+    }
+
+    // Supprime une conversation (DELETE /api/chats/{id})
+    async function supprimerChat(chatId) {
+        try {
+            await fetch(`${API_URL}/api/chats/${chatId}`, {
+                method: "DELETE",
+                headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+            });
+            if (chatId === currentChatId && btnNouveauChat) {
+                btnNouveauChat.click();
+            }
+            chargerHistoriqueChats();
+        } catch (err) {
+            alert("❌ Impossible de supprimer la conversation.");
+        }
+    }
+
     // Sélectionner un salon et charger ses messages passés
     async function selectionnerChat(chatId, titre) {
         currentChatId = chatId;
         document.getElementById("current-chat-title").innerText = titre;
+        document.querySelectorAll("#liste-chats .chat-sidebar-item").forEach(item => {
+            item.classList.toggle("actif", Number(item.dataset.chatId) === chatId);
+        });
         if (welcomeMessage) welcomeMessage.remove();
         zoneMessages.innerHTML = `<div class="text-center py-3 text-secondary"><div class="spinner-border spinner-border-sm text-primary"></div> Chargement...</div>`;
 
@@ -155,7 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     body: JSON.stringify({ titre: text.substring(0, 25) || "Nouvelle discussion" })
                 });
                 if (response.status === 401) {
-                    window.location.href = "pages/connexion.html";
+                    redirigerVersConnexion();
                     return;
                 }
                 const nouveauChat = await response.json();
@@ -172,11 +277,8 @@ document.addEventListener("DOMContentLoaded", () => {
         let userContent = text;
         if (selectedFiles.length > 0) {
             userContent += `<br><small class="text-info">📎 ${selectedFiles.length} fichier(s) joint(s)</small>`;
-            for (let f of selectedFiles) {
-                await uploadFileBackend(f, currentChatId); // Passage du currentChatId requis
-            }
         }
-        
+
         appendMessage(userContent, "user");
         inputMessage.value = "";
         selectedFiles = [];
@@ -185,22 +287,87 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Indicateur de chargement
         const loadingId = appendMessage(`<div class="typing-dots"><span></span><span></span><span></span></div>`, "bot");
-
-        // Lancer la requête API vers Python
-        const data = await sendChatMessage(currentChatId, text, null);
-        if (!data) return; // 401 : redirection déjà en cours vers la connexion
-
-        // Remplacer l'indicateur par la réponse finale de Gemini
         const botBubble = document.getElementById(loadingId);
-        if (botBubble) {
-            const contenu = data.contenu || "Désolé, je n'ai pas pu générer de réponse.";
-            botBubble.querySelector(".bubble").innerHTML = formaterTexteIA(contenu);
-            
-            // Déclenchement de KaTeX pour les formules
-            rendreMaths(botBubble);
-        }
-        
+
+        // Lancer la requête en streaming : la réponse s'affiche au fur et à mesure
+        await streamChatMessage(currentChatId, text, botBubble, (titre) => {
+            if (titre) {
+                document.getElementById("current-chat-title").innerText = titre;
+                chargerHistoriqueChats();
+            }
+        });
+
         zoneMessages.scrollTop = zoneMessages.scrollHeight;
+    }
+
+    // ─── Réception de la réponse Gemini en streaming (effet de frappe) ───
+    async function streamChatMessage(chatId, contenu, botBubble, onFin) {
+        let brut = "";
+        let premierFragment = true;
+
+        try {
+            const response = await fetch(`${API_URL}/api/messages/stream`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${localStorage.getItem("token")}`
+                },
+                body: JSON.stringify({ chat_id: chatId, contenu: contenu, modele_id: null })
+            });
+
+            if (response.status === 401) {
+                redirigerVersConnexion();
+                return;
+            }
+            if (!response.ok || !response.body) {
+                throw new Error(`Erreur serveur (${response.status})`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let tampon = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                tampon += decoder.decode(value, { stream: true });
+                const lignes = tampon.split("\n\n");
+                tampon = lignes.pop(); // garde le fragment incomplet pour le prochain tour
+
+                for (const ligne of lignes) {
+                    if (!ligne.startsWith("data: ")) continue;
+                    const evt = JSON.parse(ligne.slice(6));
+
+                    if (evt.erreur) throw new Error(evt.erreur);
+
+                    if (evt.delta) {
+                        const bulle = botBubble.querySelector(".bubble");
+                        if (premierFragment) {
+                            // On bascule sur un simple <span> de texte brut : pas de ré-analyse
+                            // markdown/HTML à chaque fragment, donc pas de "saut" visuel —
+                            // le texte s'écoule en continu, comme sur Claude.
+                            bulle.innerHTML = `<span class="texte-en-flux"></span>`;
+                            premierFragment = false;
+                        }
+                        brut += evt.delta;
+                        bulle.querySelector(".texte-en-flux").textContent = brut;
+                        zoneMessages.scrollTop = zoneMessages.scrollHeight;
+                    }
+
+                    if (evt.fin) {
+                        // Une fois le flux terminé, on applique le formatage markdown
+                        // complet (gras, listes, titres...) puis le rendu KaTeX.
+                        botBubble.querySelector(".bubble").innerHTML = formaterTexteIA(brut);
+                        rendreMaths(botBubble);
+                        if (onFin) onFin(evt.titre);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Erreur streaming :", err);
+            botBubble.querySelector(".bubble").innerHTML = `❌ ${err.message || "Impossible de joindre le serveur."}`;
+        }
     }
 
     // Déclencheurs d'envoi
@@ -261,17 +428,61 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ─── 4. GESTION DE L'UPLOAD DE FICHIERS ───
+    // Le fichier est envoyé et traité (extraction du texte) immédiatement à la
+    // sélection, avec un indicateur visuel pendant le traitement (spinner → coché).
     if (btnUpload && inputFichier) {
         btnUpload.addEventListener("click", () => inputFichier.click());
-        inputFichier.addEventListener("change", (e) => {
-            selectedFiles = Array.from(e.target.files);
-            apercuFichiers.innerHTML = "";
-            selectedFiles.forEach((file) => {
+        inputFichier.addEventListener("change", async (e) => {
+            const fichiers = Array.from(e.target.files);
+            inputFichier.value = ""; // permet de re-sélectionner le même fichier plus tard
+
+            // Crée un salon de discussion silencieusement si aucun n'est encore ouvert.
+            // Si le token est déjà périmé, le backend renvoie 401 ICI : on redirige
+            // donc AVANT de créer le moindre fichier (plus de conversation fantôme).
+            if (!currentChatId) {
+                try {
+                    const response = await fetch(`${API_URL}/api/chats`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${localStorage.getItem("token")}`
+                        },
+                        body: JSON.stringify({ titre: "Nouvelle discussion" })
+                    });
+                    if (response.status === 401) {
+                        redirigerVersConnexion();
+                        return;
+                    }
+                    const nouveauChat = await response.json();
+                    currentChatId = nouveauChat.id;
+                    chargerHistoriqueChats();
+                } catch (err) {
+                    alert("❌ Impossible de créer la conversation pour le fichier.");
+                    return;
+                }
+            }
+
+            for (const file of fichiers) {
                 const badge = document.createElement("span");
                 badge.className = "badge bg-secondary d-flex align-items-center gap-1 p-2";
-                badge.innerHTML = `<i class="bi bi-file-earmark-check"></i> ${file.name}`;
+                badge.innerHTML = `<span class="spinner-border spinner-border-sm" role="status"></span> ${file.name}`;
                 apercuFichiers.appendChild(badge);
-            });
+
+                const resultat = await uploadFileBackend(file, currentChatId);
+
+                if (resultat && resultat.__unauthorized) {
+                    // Session expirée juste avant l'upload : on purge et on redirige.
+                    redirigerVersConnexion();
+                    return;
+                }
+
+                if (resultat) {
+                    selectedFiles.push(file);
+                    badge.innerHTML = `<i class="bi bi-file-earmark-check text-success"></i> ${file.name}`;
+                } else {
+                    badge.innerHTML = `<i class="bi bi-exclamation-triangle text-danger"></i> ${file.name}`;
+                }
+            }
         });
     }
 
@@ -291,12 +502,31 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // ─── 6. SÉLECTEUR DE MODÈLE IA ───
-    document.querySelectorAll(".dropdown-item").forEach(item => {
+    // ─── 6. SÉLECTEUR DE MODÈLE IA (dropdown manuel, sans JS Bootstrap) ───
+    const btnSelecteurModele = document.getElementById("btn-selecteur-modele");
+    const menuSelecteurModele = document.getElementById("menu-selecteur-modele");
+    if (btnSelecteurModele && menuSelecteurModele) {
+        btnSelecteurModele.addEventListener("click", (e) => {
+            e.stopPropagation();
+            menuSelecteurModele.classList.toggle("ouvert");
+        });
+        document.addEventListener("click", () => menuSelecteurModele.classList.remove("ouvert"));
+    }
+    document.querySelectorAll(".dropdown-item[data-modele]").forEach(item => {
         item.addEventListener("click", (e) => {
             e.preventDefault();
-            const model = e.target.getAttribute("data-modele");
+            const model = e.currentTarget.getAttribute("data-modele");
             document.getElementById("modele-actuel").innerText = model;
+            if (menuSelecteurModele) menuSelecteurModele.classList.remove("ouvert");
+        });
+    });
+
+    // ─── 7. SUGGESTIONS RAPIDES SUR L'ÉCRAN D'ACCUEIL ───
+    document.querySelectorAll(".suggestion-chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+            inputMessage.value = chip.getAttribute("data-suggestion");
+            inputMessage.focus();
+            gererEnvoi();
         });
     });
 });

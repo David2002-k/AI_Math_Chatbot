@@ -22,11 +22,20 @@
   <link rel="stylesheet" href="./vendor/bootstrap-icons/bootstrap-icons.min.css">
 
   <style>
-    :root{
+    :root, :root[data-theme="sombre"]{
       --bg-void:#0B0D14; --bg-panel:#11141D; --bg-panel-2:#161A26;
       --bg-bubble-bot:#161A26; --bg-bubble-user:#2A2748;
       --ink:#E7E6F0; --ink-dim:#8C8FA3; --line:#232737;
       --accent:#8B7CFF; --accent-soft:rgba(139,124,255,0.12);
+      --radius-lg:20px; --radius-sm:10px;
+    }
+
+    /* ── MODE CLAIR : palette dédiée, lisible, pas un simple inversion ── */
+    :root[data-theme="clair"]{
+      --bg-void:#F6F5FB; --bg-panel:#FFFFFF; --bg-panel-2:#F0EEF9;
+      --bg-bubble-bot:#FFFFFF; --bg-bubble-user:#EDE9FE;
+      --ink:#1E1B2E; --ink-dim:#6B6680; --line:#E2DFF0;
+      --accent:#6F5FE8; --accent-soft:rgba(111,95,232,0.10);
       --radius-lg:20px; --radius-sm:10px;
     }
     *{ box-sizing:border-box; }
@@ -42,6 +51,28 @@
       color: var(--ink);
       margin:0;
     }
+    [data-theme="clair"] body{
+      background:
+        radial-gradient(ellipse 900px 500px at 12% -10%, rgba(111,95,232,0.06), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 110% 10%, rgba(242,183,5,0.05), transparent 55%),
+        var(--bg-void);
+    }
+
+    /* ── Surcharge des classes Bootstrap codées en dur pour le mode sombre,
+       afin qu'elles restent lisibles en mode clair ── */
+    [data-theme="clair"] .text-light{ color: var(--ink) !important; }
+    [data-theme="clair"] .text-secondary{ color: var(--ink-dim) !important; }
+    [data-theme="clair"] .text-muted{ color: var(--ink-dim) !important; }
+    [data-theme="clair"] .border-secondary{ border-color: var(--line) !important; }
+    [data-theme="clair"] .bg-transparent{ background-color: transparent !important; }
+    [data-theme="clair"] .dropdown-menu-manuel{ box-shadow:0 12px 30px -10px rgba(30,27,46,0.15); }
+    [data-theme="clair"] .sidebar::before{ color: rgba(111,95,232,0.06); }
+    [data-theme="clair"] .sidebar .text-primary.fw-bold{ color:#FFFFFF !important; }
+    [data-theme="clair"] .msg-bot .bubble{ box-shadow:0 2px 10px rgba(30,27,46,0.05); }
+    [data-theme="clair"] .msg-user .bubble{ border-color: rgba(111,95,232,0.18); }
+    [data-theme="clair"] ::-webkit-scrollbar-thumb{ background: var(--line); }
+    [data-theme="clair"] .sidebar{ box-shadow: 2px 0 12px rgba(30,27,46,0.03); }
+
 
     /* ── Typographie d'accent : titres & math en serif éditorial ── */
     h1,h2,h3,h4,h5,h6,
@@ -68,8 +99,27 @@
     #liste-chats{ scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
     #liste-chats::-webkit-scrollbar{ width:6px; }
     #liste-chats::-webkit-scrollbar-thumb{ background:var(--line); border-radius:10px; }
-    .chat-sidebar-item{ transition:background .15s ease; border:1px solid transparent; }
+    .chat-sidebar-item{ transition:background .15s ease; border:1px solid transparent; position:relative; }
     .chat-sidebar-item:hover{ background:var(--bg-panel-2) !important; border-color:var(--line); }
+    .chat-sidebar-item.actif{ background:var(--accent-soft) !important; border-color:rgba(139,124,255,0.35); }
+    .chat-sidebar-item.actif span{ color:var(--ink) !important; font-weight:600; }
+    .btn-menu-chat{ color:var(--ink-dim); opacity:0.55; transition:opacity .15s ease, background .15s ease; background:transparent; border:none; flex-shrink:0; width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; }
+    .chat-sidebar-item:hover .btn-menu-chat, .chat-sidebar-item.actif .btn-menu-chat{ opacity:1; }
+    .btn-menu-chat:hover{ color:var(--accent); background:var(--accent-soft); opacity:1; }
+    /* ── Menu contextuel "Renommer / Supprimer" d'un chat ── */
+    .menu-chat-contextuel{
+      display:none; position:absolute; right:6px; top:calc(100% - 4px); z-index:1060;
+      background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius-sm);
+      min-width:170px; padding:6px; list-style:none; margin:0; box-shadow:0 12px 30px -10px rgba(0,0,0,0.5);
+    }
+    .menu-chat-contextuel.ouvert{ display:block; }
+    .menu-chat-contextuel button{
+      display:flex; align-items:center; gap:8px; width:100%; text-align:left; background:none; border:none;
+      color:var(--ink); border-radius:8px; padding:8px 10px; font-size:0.85rem;
+    }
+    .menu-chat-contextuel button:hover{ background:var(--accent-soft); }
+    .menu-chat-contextuel button.danger{ color:#E2566B; }
+    .menu-chat-contextuel button.danger:hover{ background:rgba(226,86,107,0.12); }
     #lien-mon-compte:hover, #btn-parametres:hover{ color:var(--accent) !important; }
 
     .main-content{ background:transparent; min-width:0; }
@@ -81,7 +131,30 @@
 
     #welcome-message{ max-width:620px; margin:auto; }
     #welcome-message h4{ font-size:2rem; font-weight:600; background:linear-gradient(135deg,#E7E6F0,#A89BFF); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    [data-theme="clair"] #welcome-message h4{ background:linear-gradient(135deg,#1E1B2E,#6F5FE8); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
     #welcome-message p{ font-size:0.98rem; }
+
+    /* ── Suggestions rapides sur l'écran d'accueil ── */
+    .suggestions-rapides{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:22px; }
+    .suggestion-chip{
+      background:var(--bg-panel-2); border:1px solid var(--line); color:var(--ink);
+      border-radius:14px; padding:10px 16px; font-size:0.85rem; cursor:pointer;
+      transition:border-color .15s ease, transform .15s ease; text-align:left;
+    }
+    .suggestion-chip:hover{ border-color:var(--accent); transform:translateY(-2px); }
+    .suggestion-chip i{ color:var(--accent); margin-right:6px; }
+
+    /* ── Sélecteur de modèle (header) ── */
+    #btn-selecteur-modele{ background:var(--bg-panel-2); border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--ink); font-size:0.85rem; }
+    #btn-selecteur-modele:hover{ border-color:var(--accent); }
+    .dropdown-menu-manuel{
+      display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:1050;
+      background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius-sm);
+      min-width:220px; padding:6px; list-style:none; margin:0; box-shadow:0 12px 30px -10px rgba(0,0,0,0.5);
+    }
+    .dropdown-menu-manuel.ouvert{ display:block; }
+    .dropdown-menu-manuel .dropdown-item{ color:var(--ink); border-radius:8px; padding:8px 10px; font-size:0.85rem; text-decoration:none; display:block; }
+    .dropdown-menu-manuel .dropdown-item:hover{ background:var(--accent-soft); }
 
     .msg-container{ display:flex; margin-bottom:18px; }
     .msg-bot{ justify-content:flex-start; }
@@ -89,11 +162,13 @@
     .msg-container .bubble{ max-width:72%; padding:14px 18px; line-height:1.55; font-size:0.96rem; overflow-wrap:break-word; }
     .msg-bot .bubble p:last-child{ margin-bottom:0 !important; }
     .msg-bot .bubble ul{ margin-bottom:0.5rem; }
+    .texte-en-flux{ white-space:pre-wrap; }
     .msg-bot .bubble{ background:var(--bg-bubble-bot); border:1px solid var(--line); border-radius:4px var(--radius-lg) var(--radius-lg) var(--radius-lg); color:var(--ink); }
     .msg-user .bubble{ background:var(--bg-bubble-user); border:1px solid rgba(139,124,255,0.25); border-radius:var(--radius-lg) 4px var(--radius-lg) var(--radius-lg); color:var(--ink); }
 
-    /* Lisibilité des formules mathématiques (KaTeX) */
-    .msg-bot .katex{ font-size: 1.15em; color: #F4F1FF; }
+    /* Lisibilité des formules mathématiques (KaTeX) — couleur liée au thème
+       (avant : blanc fixe, invisible en mode clair sur fond clair) */
+    .msg-bot .katex{ font-size: 1.15em; color: var(--ink); }
     .msg-bot .katex-display{
       background: var(--bg-panel-2);
       border: 1px solid var(--line);
@@ -184,10 +259,23 @@
         <span class="fw-bold fs-5 text-light">AI Math Chatbot</span>
       </div>
 
-      <div class="p-3">
+      <div class="p-3 pb-2">
         <button class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2 rounded-pill fw-semibold shadow-sm" id="btn-nouveau-chat">
           <i class="bi bi-plus-lg"></i> Nouvelle conversation
         </button>
+      </div>
+
+      <div class="px-3 pb-2">
+        <div class="dropdown-manuel position-relative w-100">
+          <button class="btn btn-sm d-flex align-items-center justify-content-center gap-2 w-100" id="btn-selecteur-modele">
+            <i class="bi bi-stars"></i> <span id="modele-actuel">Basique</span> <i class="bi bi-chevron-down small ms-auto"></i>
+          </button>
+          <ul class="dropdown-menu-manuel" id="menu-selecteur-modele" style="left:0; right:0; width:100%;">
+            <li><a href="#" class="dropdown-item" data-modele="Basique">⚡ Basique — rapide</a></li>
+            <li><a href="#" class="dropdown-item" data-modele="Pro">✨ Pro — plus précis</a></li>
+            <li><a href="#" class="dropdown-item" data-modele="Max">🚀 Max — puissance maximale</a></li>
+          </ul>
+        </div>
       </div>
 
       <div class="px-3 pb-2">
@@ -217,9 +305,11 @@
           </button>
           <h6 class="m-0 fw-semibold" id="current-chat-title">Nouvelle discussion</h6>
         </div>
-        <button class="btn btn-link text-secondary p-2 fs-6 d-flex align-items-center gap-1" id="btn-toggle-theme" title="Changer de thème" aria-label="Changer de thème">
-          <i class="bi bi-moon-stars"></i> Thème
-        </button>
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-link text-secondary p-2 fs-6 d-flex align-items-center gap-1" id="btn-toggle-theme" title="Changer de thème" aria-label="Changer de thème">
+            <i class="bi bi-moon-stars"></i>
+          </button>
+        </div>
       </header>
 
       <section class="chat-zone flex-grow-1 overflow-auto px-4 py-3" id="zone-messages" style="scroll-behavior: smooth;">
@@ -229,6 +319,12 @@
           <p class="text-muted mx-auto" style="max-width: 500px;">
             Posez votre question mathématique, importez un exercice ou utilisez votre micro pour démarrer.
           </p>
+          <div class="suggestions-rapides">
+            <button class="suggestion-chip" data-suggestion="Résous l'équation du second degré x² - 5x + 6 = 0 étape par étape."><i class="bi bi-calculator"></i>Résoudre une équation</button>
+            <button class="suggestion-chip" data-suggestion="Calcule la dérivée de f(x) = x³ ln(x) et explique chaque étape."><i class="bi bi-graph-up"></i>Calculer une dérivée</button>
+            <button class="suggestion-chip" data-suggestion="Explique-moi comment calculer une intégrale par parties avec un exemple."><i class="bi bi-infinity"></i>Comprendre les intégrales</button>
+            <button class="suggestion-chip" data-suggestion="Démontre le théorème de Pythagore."><i class="bi bi-triangle"></i>Une démonstration</button>
+          </div>
         </div>
       </section>
 
@@ -262,13 +358,6 @@
       </footer>
     </main>
 
-  </div>
-
-  <div class="d-none">
-    <span id="modele-actuel">Basique</span>
-    <a href="#" class="dropdown-item" data-modele="Basique">Basique</a>
-    <a href="#" class="dropdown-item" data-modele="Pro">Pro</a>
-    <a href="#" class="dropdown-item" data-modele="Max">Max</a>
   </div>
 
   <script src="./js/api.js"></script>

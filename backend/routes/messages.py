@@ -5,7 +5,10 @@ Gestion des messages (table messages) sécurisée et optimisée.
 ─────────────────────────────────────────────
 """
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -13,21 +16,14 @@ from models import Message, Chat, Fichier, Utilisateur, ModeleIA
 from schemas import MessageCreation, MessageReponse, MessageReaction
 from dependencies import obtenir_utilisateur_courant
 
-from services.gemini_service import generer_reponse, generer_titre_chat
+from services.gemini_service import generer_reponse, generer_reponse_stream, generer_titre_chat
 
 router = APIRouter(prefix="/api/messages", tags=["Messages"])
 
 
-# ══════════════════════════════════════════════
-# ENVOYER UN MESSAGE → RÉPONSE GEMINI
-# ══════════════════════════════════════════════
-@router.post("", response_model=MessageReponse)
-def envoyer_message(
-    donnees: MessageCreation,
-    utilisateur: Utilisateur = Depends(obtenir_utilisateur_courant),
-    db: Session = Depends(get_db)
-):
-    # Vérifie que le chat appartient bien à l'utilisateur
+# ── Préparation commune : sauvegarde le message utilisateur, rattache les
+#    fichiers en attente, et détermine le modèle + l'historique à envoyer à Gemini ──
+def _preparer_envoi(donnees: MessageCreation, utilisateur: Utilisateur, db: Session):
     chat = db.query(Chat).filter(
         Chat.id == donnees.chat_id,
         Chat.utilisateur_id == utilisateur.id
@@ -35,7 +31,6 @@ def envoyer_message(
     if not chat:
         raise HTTPException(status_code=404, detail="Conversation introuvable.")
 
-    # ── 1. Sauvegarde le message de l'utilisateur ──
     message_user = Message(
         chat_id=chat.id,
         modele_id=donnees.modele_id or chat.modele_id,
@@ -52,17 +47,18 @@ def envoyer_message(
         (Fichier.message_id == message_user.id) |
         ((Fichier.message_id == None) & (Fichier.chat_id == chat.id))
     ).all()
-    
-    contexte_fichiers = "\n".join(f.contenu_extrait for f in fichiers if f.contenu_extrait)
 
-    # Si des fichiers étaient en attente, on les associe définitivement à ce message utilisateur
+    contexte_fichiers = "\n".join(f.contenu_extrait for f in fichiers if f.contenu_extrait)
+    # Les images ne sont pas extraites en texte : elles sont envoyées telles quelles
+    # à Gemini (vision) pour qu'il puisse réellement "voir" les exercices photographiés.
+    chemins_images = [f.chemin for f in fichiers if f.type_fichier == "image"]
+
     for f in fichiers:
         if f.message_id is None:
             f.message_id = message_user.id
     if fichiers:
         db.commit()
 
-    # ── 2. Détermine quel modèle IA utiliser ──
     nom_modele = "Basique"
     modele_id_utilise = donnees.modele_id or chat.modele_id
     if modele_id_utilise:
@@ -70,13 +66,32 @@ def envoyer_message(
         if modele_ia:
             nom_modele = modele_ia.nom
 
-    # ── 3. Appelle Gemini ──
+    # Historique du chat (mémoire de conversation), EXCLUANT le message courant
+    messages_precedents = db.query(Message).filter(
+        Message.chat_id == chat.id,
+        Message.id != message_user.id
+    ).order_by(Message.date_creation.asc()).all()
+    historique = [{"role": m.role, "contenu": m.contenu} for m in messages_precedents]
+
+    return chat, message_user, nom_modele, modele_id_utilise, contexte_fichiers, historique, chemins_images
+
+
+# ══════════════════════════════════════════════
+# ENVOYER UN MESSAGE → RÉPONSE GEMINI (sans streaming, conservé pour compatibilité)
+# ══════════════════════════════════════════════
+@router.post("", response_model=MessageReponse)
+def envoyer_message(
+    donnees: MessageCreation,
+    utilisateur: Utilisateur = Depends(obtenir_utilisateur_courant),
+    db: Session = Depends(get_db)
+):
+    chat, message_user, nom_modele, modele_id_utilise, contexte_fichiers, historique, chemins_images = _preparer_envoi(donnees, utilisateur, db)
+
     try:
-        resultat = generer_reponse(donnees.contenu, nom_modele, contexte_fichiers)
+        resultat = generer_reponse(donnees.contenu, nom_modele, contexte_fichiers, historique, chemins_images)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erreur Gemini : {str(e)}")
 
-    # ── 4. Sauvegarde la réponse de l'IA ──
     message_ia = Message(
         chat_id=chat.id,
         modele_id=modele_id_utilise,
@@ -86,19 +101,67 @@ def envoyer_message(
     )
     db.add(message_ia)
 
-    # ── 5. Renommage automatique intelligent du titre ──
-    # Si le titre est celui par défaut, on le génère via l'IA
     if chat.titre == "Nouvelle conversation" and not chat.titre_modifie:
         try:
             chat.titre = generer_titre_chat(donnees.contenu)
         except Exception:
-            # Sécurité : Si l'extraction du titre échoue, on prend les premiers mots
             chat.titre = donnees.contenu[:30] + "..." if len(donnees.contenu) > 30 else donnees.contenu
 
     db.commit()
     db.refresh(message_ia)
 
     return message_ia
+
+
+# ══════════════════════════════════════════════
+# ENVOYER UN MESSAGE → RÉPONSE GEMINI EN STREAMING (effet de frappe en direct)
+# ══════════════════════════════════════════════
+@router.post("/stream")
+def envoyer_message_stream(
+    donnees: MessageCreation,
+    utilisateur: Utilisateur = Depends(obtenir_utilisateur_courant),
+    db: Session = Depends(get_db)
+):
+    chat, message_user, nom_modele, modele_id_utilise, contexte_fichiers, historique, chemins_images = _preparer_envoi(donnees, utilisateur, db)
+
+    def flux_reponse():
+        texte_complet = ""
+        tokens = 0
+        try:
+            for morceau in generer_reponse_stream(donnees.contenu, nom_modele, contexte_fichiers, historique, chemins_images):
+                if isinstance(morceau, tuple) and morceau[0] == "__usage__":
+                    tokens = morceau[1]
+                    continue
+                texte_complet += morceau
+                yield f"data: {json.dumps({'delta': morceau})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'erreur': str(e)})}\n\n"
+            return
+
+        # Sauvegarde la réponse complète une fois le flux terminé
+        message_ia = Message(
+            chat_id=chat.id,
+            modele_id=modele_id_utilise,
+            role="assistant",
+            contenu=texte_complet,
+            tokens_utilises=tokens
+        )
+        db.add(message_ia)
+
+        nouveau_titre = None
+        if chat.titre == "Nouvelle conversation" and not chat.titre_modifie:
+            try:
+                chat.titre = generer_titre_chat(donnees.contenu)
+            except Exception:
+                chat.titre = donnees.contenu[:30] + "..." if len(donnees.contenu) > 30 else donnees.contenu
+            nouveau_titre = chat.titre
+
+        db.commit()
+        db.refresh(message_ia)
+
+        yield f"data: {json.dumps({'fin': True, 'message_id': message_ia.id, 'titre': nouveau_titre})}\n\n"
+
+    return StreamingResponse(flux_reponse(), media_type="text/event-stream")
 
 
 # ══════════════════════════════════════════════

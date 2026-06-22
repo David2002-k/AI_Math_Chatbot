@@ -12,6 +12,7 @@ Fonctions :
 
 import os
 import google.generativeai as genai
+from PIL import Image
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,9 +27,6 @@ MODELES_GEMINI = {
 }
 
 # --- INSTRUCTION SYSTÈME OPTIMISÉE POUR LE RENDU KATEX ---
-# IMPORTANT : reponse.text est du TEXTE BRUT (pas du JSON), donc un seul antislash suffit.
-# On évite les délimiteurs $ ... $ car ils entrent en conflit avec des montants en dollars
-# qui peuvent apparaître dans un énoncé ("un article coûte 5$").
 INSTRUCTION_SYSTEME = r"""
 Tu es un assistant mathématique pédagogique et rigoureux pour des étudiants en Licence MI.
 Décompose toujours tes solutions en étapes numérotées et claires.
@@ -44,9 +42,31 @@ A = \begin{pmatrix} a & b \\ c & d \end{pmatrix}
 """
 
 
-def generer_reponse(question: str, nom_modele: str = "Basique", contexte_fichiers: str = "") -> dict:
+def _construire_parts(question: str, contexte_fichiers: str, chemins_images: list[str] | None):
     """
-    Envoie la question (+ contenu de fichiers éventuels) à Gemini.
+    Construit la liste de "parts" envoyée à Gemini : le texte (question + contenu
+    extrait des PDF/DOCX), suivi des images ouvertes via Pillow (vision), afin que
+    l'IA "voie" réellement les photos d'exercices et pas seulement leur nom.
+    """
+    prompt = question
+    if contexte_fichiers:
+        prompt = f"{question}\n\n--- Contenu des fichiers joints ---\n{contexte_fichiers}"
+
+    parts = [prompt]
+    for chemin in (chemins_images or []):
+        try:
+            parts.append(Image.open(chemin))
+        except Exception as e:
+            print(f"Erreur d'ouverture de l'image {chemin}: {str(e)}")
+    return parts
+
+
+def generer_reponse(question: str, nom_modele: str = "Basique", contexte_fichiers: str = "", historique: list[dict] | None = None, chemins_images: list[str] | None = None) -> dict:
+    """
+    Envoie la question (+ contenu de fichiers éventuels) à Gemini, en tenant compte
+    de l'historique des messages précédents du même chat (mémoire de conversation).
+    `historique` est une liste de dicts {"role": "user"|"assistant", "contenu": str},
+    triée du plus ancien au plus récent, EXCLUANT le message courant.
     Retourne {"texte": ..., "tokens": ...}
     """
     modele_technique = MODELES_GEMINI.get(nom_modele, "gemini-2.5-flash")
@@ -55,11 +75,15 @@ def generer_reponse(question: str, nom_modele: str = "Basique", contexte_fichier
         system_instruction=INSTRUCTION_SYSTEME
     )
 
-    prompt = question
-    if contexte_fichiers:
-        prompt = f"{question}\n\n--- Contenu des fichiers joints ---\n{contexte_fichiers}"
+    contenu_historique = []
+    for msg in (historique or []):
+        role_gemini = "model" if msg["role"] == "assistant" else "user"
+        contenu_historique.append({"role": role_gemini, "parts": [msg["contenu"]]})
 
-    reponse = modele.generate_content(prompt)
+    chat_session = modele.start_chat(history=contenu_historique)
+
+    parts = _construire_parts(question, contexte_fichiers, chemins_images)
+    reponse = chat_session.send_message(parts)
 
     tokens = 0
     if hasattr(reponse, "usage_metadata") and reponse.usage_metadata:
@@ -69,6 +93,38 @@ def generer_reponse(question: str, nom_modele: str = "Basique", contexte_fichier
         "texte": reponse.text,
         "tokens": tokens
     }
+
+
+def generer_reponse_stream(question: str, nom_modele: str = "Basique", contexte_fichiers: str = "", historique: list[dict] | None = None, chemins_images: list[str] | None = None):
+    """
+    Variante en streaming de generer_reponse() : envoie la question à Gemini et
+    yield chaque fragment de texte au fur et à mesure qu'il arrive (effet de frappe).
+    Le dernier élément yield est un tuple ("__usage__", tokens) pour signaler la fin.
+    """
+    modele_technique = MODELES_GEMINI.get(nom_modele, "gemini-2.5-flash")
+    modele = genai.GenerativeModel(
+        model_name=modele_technique,
+        system_instruction=INSTRUCTION_SYSTEME
+    )
+
+    contenu_historique = []
+    for msg in (historique or []):
+        role_gemini = "model" if msg["role"] == "assistant" else "user"
+        contenu_historique.append({"role": role_gemini, "parts": [msg["contenu"]]})
+
+    chat_session = modele.start_chat(history=contenu_historique)
+
+    parts = _construire_parts(question, contexte_fichiers, chemins_images)
+    flux = chat_session.send_message(parts, stream=True)
+
+    tokens = 0
+    for fragment in flux:
+        if fragment.text:
+            yield fragment.text
+        if hasattr(fragment, "usage_metadata") and fragment.usage_metadata:
+            tokens = fragment.usage_metadata.total_token_count
+
+    yield ("__usage__", tokens)
 
 
 def generer_titre_chat(premier_message: str) -> str:
@@ -86,6 +142,6 @@ def generer_titre_chat(premier_message: str) -> str:
     try:
         reponse = modele.generate_content(prompt)
         titre = reponse.text.strip().strip('"').strip("'")
-        return titre[:60]  # sécurité longueur
+        return titre[:60]
     except Exception:
         return "Nouvelle conversation"

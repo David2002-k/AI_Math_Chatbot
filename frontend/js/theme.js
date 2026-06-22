@@ -34,12 +34,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const icon = btnTheme.querySelector("i");
         if (!icon) return; // Sécurité si la balise <i> n'est pas encore prête
 
+        // Le contraste est entièrement géré par les variables CSS data-theme,
+        // pas besoin de forcer une couleur en JS (ça écrasait les variables).
         if (theme === "sombre") {
             icon.className = "bi bi-sun"; // Icône soleil pour passer au clair
-            document.body.style.color = "#f8f9fa"; // Sécurité contraste sombre
         } else {
             icon.className = "bi bi-moon-stars"; // Icône lune pour passer au sombre
-            document.body.style.color = "#212529"; // Sécurité contraste clair
         }
     }
 });

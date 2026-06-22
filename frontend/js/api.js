@@ -2,6 +2,18 @@
 const API_URL = "http://127.0.0.1:8000";
 
 /**
+ * Gère une session expirée/invalide (réponse HTTP 401).
+ * On purge le token périmé AVANT de rediriger : sinon la garde de index.html
+ * (qui ne teste que la présence d'un token) laisse l'utilisateur revenir et
+ * reboucle indéfiniment sur des erreurs 401.
+ */
+function redirigerVersConnexion() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.location.href = "pages/connexion.html";
+}
+
+/**
  * Envoie un message texte à l'API du chatbot
  * @param {number} chatId - L'identifiant de la conversation courante
  * @param {string} contenu - Le texte saisi par l'utilisateur
@@ -25,7 +37,7 @@ async function sendChatMessage(chatId, contenu, modeleId = null) {
 
         if (response.status === 401) {
             console.warn("Utilisateur déconnecté ou token expiré.");
-            window.location.href = "pages/connexion.html";
+            redirigerVersConnexion();
             return null;
         }
 
@@ -63,7 +75,11 @@ async function uploadFileBackend(file, chatId) {
             },
             body: formData
         });
-        
+
+        if (response.status === 401) {
+            return { __unauthorized: true };
+        }
+
         if (!response.ok) {
             const erreurData = await response.json().catch(() => ({}));
             throw new Error(erreurData.detail || `Erreur serveur (${response.status})`);
