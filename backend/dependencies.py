@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from database import get_db
-from models import Utilisateur, Session as SessionModel, Parametre
+from models import Utilisateur, Session as SessionModel, Parametre, Admin
 from security import decoder_token, generer_token
 
 
@@ -98,3 +98,22 @@ def obtenir_utilisateur_courant(
     db.commit()
 
     return nouvel_utilisateur
+
+
+def obtenir_admin_courant(
+    utilisateur: Utilisateur = Depends(obtenir_utilisateur_courant),
+    db: Session = Depends(get_db)
+) -> Admin:
+    """
+    Dépendance réservée aux routes d'administration.
+    Vérifie que l'utilisateur connecté possède bien un profil administrateur
+    dans la table 'admins' ; sinon renvoie une erreur 403 (accès interdit).
+    Retourne le profil Admin, qui porte le rôle (superadmin / moderateur).
+    """
+    profil = db.query(Admin).filter(Admin.utilisateur_id == utilisateur.id).first()
+    if not profil:
+        raise HTTPException(
+            status_code=403,
+            detail="Accès réservé aux administrateurs."
+        )
+    return profil

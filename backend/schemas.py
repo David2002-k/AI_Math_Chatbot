@@ -28,6 +28,11 @@ class ConnexionSchema(BaseModel):
     mot_de_passe: str
 
 
+class ChangementMotDePasse(BaseModel):
+    ancien_mot_de_passe: str
+    nouveau_mot_de_passe: str
+
+
 class UtilisateurReponse(BaseModel):
     id: int
     nom: str
@@ -128,6 +133,51 @@ class ModeleIAReponse(BaseModel):
     id: int
     nom: str
     description: Optional[str] = None
+    est_actif: bool
+
+    class Config:
+        from_attributes = True
+
+
+# ── ADMINISTRATION ─────────────────────────────
+class UtilisateurAdminReponse(BaseModel):
+    """Vue détaillée d'un utilisateur pour le tableau de bord admin."""
+    id: int
+    nom: str
+    email: Optional[str] = None
+    type: str
+    est_actif: bool
+    est_admin: bool = False
+    role: Optional[str] = None  # "superadmin" | "moderateur" | None
+    date_inscription: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UtilisateurStatutModification(BaseModel):
+    est_actif: bool
+
+
+class ModeleIACreation(BaseModel):
+    nom: str
+    description: Optional[str] = None
+    modele_gemini: str
+    est_actif: bool = True
+
+
+class ModeleIAModification(BaseModel):
+    nom: Optional[str] = None
+    description: Optional[str] = None
+    modele_gemini: Optional[str] = None
+    est_actif: Optional[bool] = None
+
+
+class ModeleIAAdminReponse(BaseModel):
+    id: int
+    nom: str
+    description: Optional[str] = None
+    modele_gemini: str
     est_actif: bool
 
     class Config:

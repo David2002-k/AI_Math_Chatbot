@@ -5,12 +5,14 @@ Gestion des conversations (table chats) corrigée pour l'ordre des routes.
 ─────────────────────────────────────────────
 """
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
 
 from database import get_db
-from models import Chat, Message, Utilisateur, Recherche
+from models import Chat, Message, Utilisateur, Recherche, Fichier
 from schemas import ChatCreation, ChatModification, ChatReponse, MessageReponse
 from dependencies import obtenir_utilisateur_courant
 
@@ -70,14 +72,28 @@ def rechercher_chats(
     utilisateur: Utilisateur = Depends(obtenir_utilisateur_courant),
     db: Session = Depends(get_db)
 ):
-    """Filtre les conversations par mot-clé dans le titre, et sauvegarde la recherche."""
-    # Sauvegarde dans la table recherches
-    db.add(Recherche(utilisateur_id=utilisateur.id, mot_cle=q))
+    """Recherche les conversations par mot-clé, dans le titre OU dans le contenu
+    des messages, et conserve une trace de la recherche."""
+    from sqlalchemy import or_
+
+    terme = (q or "").strip()
+    if not terme:
+        # Requête vide : on renvoie simplement tout l'historique de l'utilisateur.
+        return db.query(Chat).filter(
+            Chat.utilisateur_id == utilisateur.id
+        ).order_by(Chat.date_modification.desc()).all()
+
+    # Sauvegarde du mot-clé recherché (table recherches)
+    db.add(Recherche(utilisateur_id=utilisateur.id, mot_cle=terme))
     db.commit()
 
+    motif = f"%{terme}%"
     resultats = db.query(Chat).filter(
         Chat.utilisateur_id == utilisateur.id,
-        Chat.titre.ilike(f"%{q}%")
+        or_(
+            Chat.titre.ilike(motif),
+            Chat.messages.any(Message.contenu.ilike(motif)),
+        )
     ).order_by(Chat.date_modification.desc()).all()
 
     return resultats
@@ -142,6 +158,26 @@ def supprimer_chat(
     db: Session = Depends(get_db)
 ):
     chat = _verifier_proprietaire(chat_id, utilisateur, db)
+
+    # Supprime d'abord TOUS les fichiers rattachés à cette conversation :
+    #  - ceux liés à un message de la conversation
+    #  - ceux encore "en attente" (uploadés mais jamais envoyés : chat_id défini,
+    #    message_id à NULL).
+    # Sans cela, la suppression échouerait sous PostgreSQL (contrainte de clé
+    # étrangère fichiers.chat_id) et laisserait des fichiers orphelins sur le disque.
+    ids_messages = [m.id for m in db.query(Message.id).filter(Message.chat_id == chat.id).all()]
+    conditions = [Fichier.chat_id == chat.id]
+    if ids_messages:
+        conditions.append(Fichier.message_id.in_(ids_messages))
+    from sqlalchemy import or_
+    fichiers = db.query(Fichier).filter(or_(*conditions)).all()
+    for f in fichiers:
+        try:
+            if f.chemin and os.path.exists(f.chemin):
+                os.remove(f.chemin)
+        except OSError as e:
+            print(f"Suppression disque impossible pour {f.chemin}: {e}")
+        db.delete(f)
 
     db.delete(chat)
     db.commit()

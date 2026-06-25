@@ -26,6 +26,38 @@ try:
         db.commit()
         print("🌱 Modèles initialisés !")
     else:
-        print("ℹ️ Les données existent déjà, rien à faire.")
+        print("ℹ️ Les modèles existent déjà, rien à faire.")
+
+    # ── Compte administrateur par défaut ──
+    from security import hasher_mot_de_passe
+
+    ADMIN_EMAIL = "admin@mathchatbot.com"
+    ADMIN_MDP = "admin123"
+
+    admin_user = db.query(models.Utilisateur).filter(
+        models.Utilisateur.email == ADMIN_EMAIL
+    ).first()
+
+    if not admin_user:
+        admin_user = models.Utilisateur(
+            nom="Administrateur",
+            email=ADMIN_EMAIL,
+            mot_de_passe=hasher_mot_de_passe(ADMIN_MDP),
+            type="authentifie",
+            est_actif=True,
+        )
+        db.add(admin_user)
+        db.commit()
+        db.refresh(admin_user)
+        db.add(models.Parametre(utilisateur_id=admin_user.id))
+        db.commit()
+
+    # Garantit le profil admin (rôle superadmin)
+    if not db.query(models.Admin).filter(models.Admin.utilisateur_id == admin_user.id).first():
+        db.add(models.Admin(utilisateur_id=admin_user.id, role="superadmin"))
+        db.commit()
+        print(f"👑 Administrateur prêt → {ADMIN_EMAIL} / {ADMIN_MDP}")
+    else:
+        print("ℹ️ Administrateur déjà présent.")
 finally:
     db.close()

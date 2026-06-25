@@ -44,17 +44,21 @@ document.addEventListener("DOMContentLoaded", () => {
     // Au démarrage, on charge l'historique de l'utilisateur connecté
     chargerHistoriqueChats();
 
-    // ─── Recherche dans l'historique (filtrage côté client) ───
+    // ─── Recherche dans l'historique (titre + contenu des messages, côté serveur) ───
     const inputRecherche = document.getElementById("recherche-chat");
     if (inputRecherche) {
+        let minuteurRecherche = null;
         inputRecherche.addEventListener("input", () => {
-            const terme = inputRecherche.value.trim().toLowerCase();
-            document.querySelectorAll("#liste-chats .chat-sidebar-item").forEach(item => {
-                // On compare uniquement le titre (data-titre), jamais le texte complet du
-                // bloc (qui inclurait des nœuds invisibles comme le menu contextuel).
-                const titre = (item.dataset.titre || "").toLowerCase();
-                item.style.display = titre.includes(terme) ? "" : "none";
-            });
+            const terme = inputRecherche.value.trim();
+            clearTimeout(minuteurRecherche);
+            // Petit délai (debounce) pour ne pas appeler l'API à chaque frappe.
+            minuteurRecherche = setTimeout(() => {
+                if (terme.length === 0) {
+                    chargerHistoriqueChats();      // champ vidé → on remet tout l'historique
+                } else {
+                    rechercherChats(terme);
+                }
+            }, 250);
         });
     }
 
@@ -86,15 +90,42 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!response.ok) throw new Error("Erreur serveur lors du chargement");
 
             const chats = await response.json();
-            listeChatsContainer.innerHTML = ""; // On efface le message "Chargement de l'historique..."
+            afficherChats(chats);
 
-            if (chats.length === 0) {
-                listeChatsContainer.innerHTML = `<div class="text-secondary small px-2">Aucune conversation</div>`;
-                return;
-            }
+        } catch (error) {
+            console.error("Erreur historique :", error);
+            listeChatsContainer.innerHTML = `<div class="text-danger small px-2">Erreur de chargement</div>`;
+        }
+    }
 
-            // Génération dynamique des salons dans la barre latérale
-            chats.forEach(chat => {
+    // ─── Recherche serveur : titre OU contenu des messages ───
+    async function rechercherChats(terme) {
+        if (!listeChatsContainer) return;
+        try {
+            const response = await fetch(`${API_URL}/api/chats/recherche?q=${encodeURIComponent(terme)}`, {
+                headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+            });
+            if (response.status === 401) { redirigerVersConnexion(); return; }
+            if (!response.ok) throw new Error("Erreur recherche");
+            const chats = await response.json();
+            afficherChats(chats, `Aucun résultat pour « ${terme} »`);
+        } catch (error) {
+            console.error("Erreur recherche :", error);
+        }
+    }
+
+    // ─── Rendu d'une liste de conversations dans la barre latérale ───
+    function afficherChats(chats, messageVide = "Aucune conversation") {
+        if (!listeChatsContainer) return;
+        listeChatsContainer.innerHTML = "";
+
+        if (!chats || chats.length === 0) {
+            listeChatsContainer.innerHTML = `<div class="text-secondary small px-2">${messageVide}</div>`;
+            return;
+        }
+
+        // Génération dynamique des salons dans la barre latérale
+        chats.forEach(chat => {
                 const chatItem = document.createElement("div");
                 chatItem.className = "chat-sidebar-item p-2 mb-1 rounded text-light small d-flex align-items-center gap-2";
                 chatItem.dataset.chatId = chat.id;
@@ -159,11 +190,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 listeChatsContainer.appendChild(chatItem);
             });
-
-        } catch (error) {
-            console.error("Erreur historique :", error);
-            listeChatsContainer.innerHTML = `<div class="text-danger small px-2">Erreur de chargement</div>`;
-        }
     }
 
     // Renomme une conversation (PATCH /api/chats/{id})
@@ -462,27 +488,71 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
 
-            for (const file of fichiers) {
+            // PASSE 1 — Affichage INSTANTANÉ des aperçus (miniature pour les
+            // images via URL.createObjectURL, icône sinon) avant tout réseau.
+            const enAttente = fichiers.map((file) => {
+                const estImage = file.type.startsWith("image/");
                 const badge = document.createElement("span");
-                badge.className = "badge bg-secondary d-flex align-items-center gap-1 p-2";
-                badge.innerHTML = `<span class="spinner-border spinner-border-sm" role="status"></span> ${file.name}`;
-                apercuFichiers.appendChild(badge);
+                badge.className = "apercu-fichier badge d-flex align-items-center gap-2 p-1 pe-2";
 
+                let vignetteHTML;
+                let objectUrl = null;
+                if (estImage) {
+                    objectUrl = URL.createObjectURL(file);
+                    vignetteHTML = `<img src="${objectUrl}" class="apercu-vignette" alt="">`;
+                } else {
+                    vignetteHTML = `<span class="apercu-vignette d-flex align-items-center justify-content-center"><i class="bi bi-file-earmark-text"></i></span>`;
+                }
+
+                // Voile + spinner par-dessus la vignette pendant l'upload.
+                badge.innerHTML = `
+                    <span class="apercu-media">
+                        ${vignetteHTML}
+                        <span class="apercu-spinner"><span class="spinner-border spinner-border-sm" role="status"></span></span>
+                    </span>
+                    <span class="apercu-nom">${file.name}</span>`;
+                apercuFichiers.appendChild(badge);
+                return { file, badge, objectUrl };
+            });
+
+            // PASSE 2 — Upload réel en arrière-plan, en parallèle.
+            await Promise.all(enAttente.map(async ({ file, badge, objectUrl }) => {
                 const resultat = await uploadFileBackend(file, currentChatId);
 
                 if (resultat && resultat.__unauthorized) {
-                    // Session expirée juste avant l'upload : on purge et on redirige.
                     redirigerVersConnexion();
                     return;
                 }
 
+                const spinner = badge.querySelector(".apercu-spinner");
+                if (spinner) spinner.remove();
+
                 if (resultat) {
-                    selectedFiles.push(file);
-                    badge.innerHTML = `<i class="bi bi-file-earmark-check text-success"></i> ${file.name}`;
+                    selectedFiles.push({ file, id: resultat.id });
+
+                    const btnRetirer = document.createElement("button");
+                    btnRetirer.type = "button";
+                    btnRetirer.className = "btn-close btn-close-white apercu-retirer";
+                    btnRetirer.setAttribute("aria-label", "Retirer le fichier");
+                    btnRetirer.addEventListener("click", async () => {
+                        btnRetirer.disabled = true;
+                        const ok = await deleteFileBackend(resultat.id);
+                        if (ok) {
+                            selectedFiles = selectedFiles.filter(item => item.id !== resultat.id);
+                            if (objectUrl) URL.revokeObjectURL(objectUrl);
+                            badge.remove();
+                        } else {
+                            btnRetirer.disabled = false;
+                            alert("❌ Impossible de retirer ce fichier.");
+                        }
+                    });
+                    badge.appendChild(btnRetirer);
                 } else {
-                    badge.innerHTML = `<i class="bi bi-exclamation-triangle text-danger"></i> ${file.name}`;
+                    badge.classList.add("apercu-erreur");
+                    const media = badge.querySelector(".apercu-media");
+                    if (media) media.innerHTML = `<span class="apercu-vignette d-flex align-items-center justify-content-center"><i class="bi bi-exclamation-triangle text-danger"></i></span>`;
                 }
-            }
+            }));
         });
     }
 

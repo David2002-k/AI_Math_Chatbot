@@ -1,6 +1,6 @@
-<<<<<<< HEAD
 # Environnement
 .env
+backend/.env
 venv/
 __pycache__/
 *.pyc
@@ -21,6 +21,3 @@ Thumbs.db
 
 # VS Code
 .vscode/
-=======
-backend/.env
->>>>>>> 3e86883efab5e725a9970b157cb6b3074c59384c

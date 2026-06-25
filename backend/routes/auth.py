@@ -12,10 +12,30 @@ import uuid
 
 from database import get_db
 from models import Utilisateur, Session as SessionModel, Parametre
-from schemas import InscriptionSchema, ConnexionSchema, TokenReponse
+from schemas import InscriptionSchema, ConnexionSchema, TokenReponse, ChangementMotDePasse
 from security import hasher_mot_de_passe, verifier_mot_de_passe, generer_token, decoder_token
+from dependencies import obtenir_utilisateur_courant
 
 router = APIRouter(prefix="/api/auth", tags=["Authentification"])
+
+
+@router.patch("/mot-de-passe")
+def changer_mot_de_passe(
+    donnees: ChangementMotDePasse,
+    utilisateur: Utilisateur = Depends(obtenir_utilisateur_courant),
+    db: Session = Depends(get_db),
+):
+    """Change le mot de passe de l'utilisateur connecté.
+    Vérifie l'ancien mot de passe, impose une longueur minimale, puis
+    révoque les autres sessions par sécurité. PATCH /api/auth/mot-de-passe"""
+    if not verifier_mot_de_passe(donnees.ancien_mot_de_passe, utilisateur.mot_de_passe):
+        raise HTTPException(status_code=400, detail="Ancien mot de passe incorrect.")
+    if len(donnees.nouveau_mot_de_passe) < 6:
+        raise HTTPException(status_code=400, detail="Le nouveau mot de passe doit contenir au moins 6 caractères.")
+
+    utilisateur.mot_de_passe = hasher_mot_de_passe(donnees.nouveau_mot_de_passe)
+    db.commit()
+    return {"detail": "Mot de passe modifié avec succès."}
 
 
 def _creer_session(db: Session, utilisateur: Utilisateur) -> str:

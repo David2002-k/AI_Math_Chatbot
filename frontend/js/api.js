@@ -57,6 +57,27 @@ async function sendChatMessage(chatId, contenu, modeleId = null) {
 }
 
 /**
+ * Supprime un fichier joint encore "en attente" (avant l'envoi du message).
+ * Utilisé par le bouton ✕ des badges d'aperçu.
+ * @param {number} fichierId - L'ID du fichier renvoyé par l'upload
+ * @returns {Promise<boolean>} true si la suppression a réussi
+ */
+async function deleteFileBackend(fichierId) {
+    try {
+        const response = await fetch(`${API_URL}/api/fichiers/${fichierId}`, {
+            method: "DELETE",
+            headers: {
+                "Authorization": `Bearer ${localStorage.getItem("token")}`
+            }
+        });
+        return response.ok;
+    } catch (error) {
+        console.error("Erreur suppression fichier :", error);
+        return false;
+    }
+}
+
+/**
  * Envoie un fichier binaire (PDF, Image) lié à une conversation au backend
  * @param {File} file - Le fichier à uploader
  * @param {number} chatId - L'ID de la conversation associée

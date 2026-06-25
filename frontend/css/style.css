@@ -173,33 +173,462 @@ body {
    5. DESIGN DES PAGES COMPLEMENTAIRES (CONNEXION, INSCRIPTION & PARAMETRES)
    ========================================================================== */
 .auth-body {
-  background-color: var(--bg-main);
   color: var(--text-main);
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 2rem 1.5rem;
+  position: relative;
+  /* Défilement vertical autorisé quand le contenu dépasse l'écran
+     (page inscription sur petits écrans), mais pas de scroll horizontal. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-color: var(--bg-main);
+  background-image:
+    radial-gradient(circle at 18% 18%, rgba(13, 110, 253, 0.10), transparent 40%),
+    radial-gradient(circle at 82% 86%, rgba(111, 66, 193, 0.09), transparent 42%);
   transition: background-color 0.3s ease;
 }
 
+/* Halo lumineux animé en fond, derrière la carte */
+.auth-body::before {
+  content: "";
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  pointer-events: none;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(13, 110, 253, 0.10), transparent 70%);
+  filter: blur(40px);
+  z-index: 0;
+  animation: floatGlow 12s ease-in-out infinite alternate;
+}
+
+@keyframes floatGlow {
+  from { transform: translate(-60px, -40px) scale(1); }
+  to   { transform: translate(60px, 50px) scale(1.15); }
+}
+
 .auth-card {
-  background-color: var(--bg-sidebar);
+  position: relative;
+  z-index: 1;
+  background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 1rem;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  max-width: 400px;
+  border-radius: 1.25rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.2);
+  max-width: 410px;
   width: 100%;
+  padding: 1.85rem !important;
+  margin: auto;
+  overflow: hidden;
+  animation: authCardIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Liseré dégradé en haut de la carte */
+.auth-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary-color), #6f42c1 55%, #20c997);
+}
+
+@keyframes authCardIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Badge logo circulaire en haut de la carte */
+.auth-logo {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-color), #6f42c1);
+  box-shadow: 0 8px 22px rgba(13, 110, 253, 0.45);
+  margin-bottom: 0.5rem;
+}
+
+.auth-card .form-label {
+  margin-bottom: 0.35rem;
+  letter-spacing: 0.01em;
 }
 
 .auth-input {
   background-color: var(--bg-main) !important;
   border: 1px solid var(--border-color) !important;
   color: var(--text-main) !important;
+  border-radius: 0.7rem !important;
+  padding: 0.55rem 0.9rem !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
+.auth-input::placeholder { color: var(--text-muted); opacity: 0.7; }
 .auth-input:focus {
+  background-color: var(--bg-card) !important;
   border-color: var(--primary-color) !important;
-  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.22) !important;
+  outline: none;
+}
+
+/* Bouton principal des pages auth : dégradé + effet de survol */
+.auth-card .btn-primary {
+  background: linear-gradient(135deg, var(--primary-color), #6f42c1) !important;
+  border: none !important;
+  padding: 0.7rem 1rem !important;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 20px rgba(13, 110, 253, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.auth-card .btn-primary:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.07);
+  box-shadow: 0 12px 26px rgba(13, 110, 253, 0.45);
+}
+.auth-card .btn-primary:active { transform: translateY(0); }
+
+.auth-card a { transition: color 0.15s ease; }
+
+/* ==========================================================================
+   5bis. APERÇU DES FICHIERS JOINTS (miniature instantanée)
+   ========================================================================== */
+.apercu-fichier {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 0.6rem;
+  max-width: 200px;
+  animation: fadeIn 0.18s ease both;
+}
+.apercu-media { position: relative; display: inline-flex; flex: 0 0 auto; }
+.apercu-vignette {
+  width: 34px;
+  height: 34px;
+  border-radius: 0.45rem;
+  object-fit: cover;
+  background-color: var(--bg-main);
+  color: var(--text-muted);
+  font-size: 1rem;
+  border: 1px solid var(--border-color);
+}
+/* Voile sombre + spinner pendant l'upload */
+.apercu-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 0.45rem;
+  color: #fff;
+}
+.apercu-nom {
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.apercu-retirer { font-size: 0.6rem; flex: 0 0 auto; }
+.apercu-erreur { border-color: var(--bs-danger, #dc3545); }
+
+/* ==========================================================================
+   5ter. PAGE D'ADMINISTRATION
+   ========================================================================== */
+.admin-body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+}
+
+/* Disposition générale : sidebar fixe + zone principale défilante */
+.admin-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Barre latérale ── */
+.admin-sidebar {
+  width: 256px;
+  flex-shrink: 0;
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  padding: 1.1rem 0.9rem;
+}
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.2rem 0.4rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 0.9rem;
+}
+.admin-brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.admin-brand-text strong { color: var(--text-main); font-size: 1.02rem; }
+.admin-brand-text small { color: var(--text-muted); font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; }
+
+.admin-nav { display: flex; flex-direction: column; gap: 0.25rem; flex-grow: 1; }
+.admin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.admin-nav-item i { font-size: 1.05rem; }
+.admin-nav-item:hover { background-color: var(--bg-card); color: var(--text-main); }
+.admin-nav-item.active {
+  background: linear-gradient(135deg, rgba(13,110,253,0.18), rgba(111,66,193,0.18));
+  color: var(--text-main);
+  box-shadow: inset 3px 0 0 var(--primary-color);
+}
+.nav-count {
+  margin-left: auto;
+  background-color: var(--bg-main);
+  color: var(--text-muted);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--border-color);
+}
+
+.admin-sidebar-foot { border-top: 1px solid var(--border-color); padding-top: 0.8rem; margin-top: 0.5rem; }
+.admin-userbox { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.7rem; padding: 0 0.3rem; }
+.admin-userinfo { display: flex; flex-direction: column; line-height: 1.2; overflow: hidden; }
+.admin-userinfo strong { color: var(--text-main); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-userinfo small { color: var(--text-muted); font-size: 0.72rem; text-transform: capitalize; }
+.admin-foot-link {
+  display: flex; align-items: center; gap: 0.5rem;
+  width: 100%; border: none; background: transparent;
+  color: var(--text-muted); font-size: 0.83rem; text-decoration: none;
+  padding: 0.45rem 0.6rem; border-radius: 0.5rem;
+}
+.admin-foot-link:hover { background-color: var(--bg-card); color: var(--text-main); }
+.admin-foot-link.danger:hover { color: #ff6b6b; }
+
+/* Avatar (initiales) */
+.admin-avatar {
+  flex-shrink: 0;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.85rem; color: #fff;
+  background: linear-gradient(135deg, var(--primary-color), #6f42c1);
+}
+.admin-avatar.sm { width: 32px; height: 32px; font-size: 0.74rem; }
+
+/* ── Zone principale ── */
+.admin-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.admin-main-top {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1.1rem 1.6rem;
+  background-color: rgba(13,14,18,0.85);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-color);
+}
+.admin-content { padding: 1.6rem; }
+.admin-panel { display: none; animation: fadeIn 0.25s ease both; }
+.admin-panel.active { display: block; }
+
+/* ── Cartes ── */
+.admin-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  overflow: hidden;
+}
+.admin-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Grille des statistiques (indépendante de Bootstrap, dont la grille est absente) */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+}
+@media (max-width: 1100px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 600px)  { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* Formulaire d'ajout de modèle (grille maison) */
+.admin-form-ajout { display: grid; grid-template-columns: 1fr 1.4fr 1fr auto; gap: 0.5rem; align-items: center; }
+@media (max-width: 768px) { .admin-form-ajout { grid-template-columns: 1fr; } }
+
+/* Cartes de statistiques */
+.stat-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  padding: 1.1rem 1.2rem;
+  display: flex; flex-direction: column; gap: 0.15rem;
+  transition: transform 0.15s ease, border-color 0.2s ease;
+}
+.stat-card:hover { transform: translateY(-3px); border-color: var(--primary-color); }
+.stat-ic {
+  width: 40px; height: 40px; border-radius: 0.6rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.15rem; color: #fff; margin-bottom: 0.4rem;
+  background: linear-gradient(135deg, var(--primary-color), #6f42c1);
+}
+.stat-val { font-size: 1.75rem; font-weight: 700; line-height: 1.1; color: var(--text-main); }
+.stat-lbl { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+
+/* Recherche utilisateurs */
+.admin-search { position: relative; min-width: 250px; }
+.admin-search i { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+.admin-search .auth-input { padding-left: 2.2rem !important; }
+
+.admin-form-ajout {
+  background-color: var(--bg-main);
+  border-bottom: 1px solid var(--border-color);
+  padding: 1rem 1.2rem;
+}
+
+/* ── Tableaux ── */
+.admin-table { color: var(--text-main); margin: 0; }
+.admin-table thead th {
+  background-color: var(--bg-main);
+  color: var(--text-muted);
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+  border: none; padding: 0.7rem 1.2rem; white-space: nowrap;
+}
+.admin-table tbody td { border-color: var(--border-color); padding: 0.7rem 1.2rem; vertical-align: middle; }
+.admin-table tbody tr { transition: background-color 0.12s ease; }
+.admin-table tbody tr:hover { background-color: rgba(255,255,255,0.03); }
+.admin-table code { color: #8ab4f8; background: transparent; font-size: 0.82rem; }
+
+.cellule-user { display: flex; align-items: center; gap: 0.65rem; }
+.cellule-user-txt { display: flex; flex-direction: column; line-height: 1.25; }
+.cellule-user-txt strong { color: var(--text-main); font-size: 0.88rem; }
+.cellule-user-txt small { color: var(--text-muted); font-size: 0.76rem; }
+
+/* Pastilles d'état */
+.pill {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.74rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 999px;
+}
+.pill-ok { color: #34d399; background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.3); }
+.pill-ko { color: #f87171; background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3); }
+.pill-admin { color: #fbbf24; background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.3); }
+
+/* Étiquette neutre (type de compte) */
+.tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.12rem 0.6rem;
+}
+
+/* Boutons d'action des tableaux (le Bootstrap local n'inclut pas les variantes outline) */
+.admin-body .btn-outline-warning, .auth-body .btn-outline-warning,
+.admin-body .btn-outline-danger, .auth-body .btn-outline-danger,
+.admin-body .btn-outline-secondary, .auth-body .btn-outline-secondary,
+.admin-body .btn-outline-primary, .auth-body .btn-outline-primary {
+  background: transparent;
+  border: 1px solid;
+}
+.admin-body .btn-outline-warning, .auth-body .btn-outline-warning { color: #fbbf24; border-color: rgba(251,191,36,0.55); }
+.admin-body .btn-outline-warning:hover, .auth-body .btn-outline-warning:hover { background: rgba(251,191,36,0.16); color: #fbbf24; }
+.admin-body .btn-outline-danger, .auth-body .btn-outline-danger { color: #f87171; border-color: rgba(248,113,113,0.55); }
+.admin-body .btn-outline-danger:hover, .auth-body .btn-outline-danger:hover { background: rgba(248,113,113,0.16); color: #f87171; }
+.admin-body .btn-outline-secondary, .auth-body .btn-outline-secondary { color: var(--text-main); border-color: var(--border-color); }
+.admin-body .btn-outline-secondary:hover, .auth-body .btn-outline-secondary:hover { background: rgba(127,127,127,0.15); color: var(--text-main); }
+.admin-body .btn-outline-primary, .auth-body .btn-outline-primary { color: var(--primary-color); border-color: var(--primary-color); }
+.admin-body .btn-outline-light { color: var(--text-main); border: 1px solid var(--border-color); background: transparent; }
+.admin-body .btn-outline-light:hover { background: rgba(127,127,127,0.12); }
+.admin-table .btn { padding: 0.28rem 0.55rem; border-radius: 0.5rem; line-height: 1; }
+.admin-form-ajout .btn-success { white-space: nowrap; }
+
+/* Boutons pleins (Bootstrap local incomplet) */
+.auth-body .btn-danger, .admin-body .btn-danger { background-color: #dc3545; border: none; color: #fff; }
+.auth-body .btn-danger:hover, .admin-body .btn-danger:hover { background-color: #bb2d3b; color: #fff; }
+
+/* Liens-boutons et bordures sur les pages auth (Bootstrap local incomplet) */
+.auth-body .btn-link { color: var(--text-muted); }
+.auth-body .btn-link:hover { color: var(--text-main); }
+.auth-card .border-bottom { border-bottom: 1px solid var(--border-color) !important; }
+.auth-card .border-secondary { border-color: var(--border-color) !important; }
+
+/* Boutons pleins (secours si le Bootstrap local ne les colore pas) */
+.admin-body .btn-success { background-color: #198754; border: none; color: #fff; }
+.admin-body .btn-success:hover { background-color: #157347; color: #fff; }
+.admin-body .btn-primary { background: linear-gradient(135deg, var(--primary-color), #6f42c1); border: none; color: #fff; }
+.admin-body .btn-primary:hover { filter: brightness(1.07); color: #fff; }
+
+/* ── Adaptation au thème clair / sombre ──
+   Les classes Bootstrap text-light / text-secondary / text-muted sont figées
+   (texte blanc/gris) : en thème clair, le texte devenait invisible. On les
+   relie aux variables de thème pour qu'elles s'adaptent automatiquement. */
+.admin-body .text-light,
+.auth-body .text-light { color: var(--text-main) !important; }
+.admin-body .text-secondary, .admin-body .text-muted,
+.auth-body .text-secondary, .auth-body .text-muted { color: var(--text-muted) !important; }
+.admin-body h4, .admin-body h5, .admin-body h6 { color: var(--text-main); }
+.admin-body .text-primary, .auth-body .text-primary { color: var(--primary-color) !important; }
+
+/* Barre supérieure : fond suivant le thème (au lieu d'un sombre figé) */
+.admin-main-top { background-color: var(--bg-main); }
+
+/* ── Formulaire « Mon compte » ── */
+.account-card { max-width: 520px; }
+.account-form { padding: 1.3rem 1.4rem; display: flex; flex-direction: column; gap: 1rem; }
+.account-form .champ { display: flex; flex-direction: column; gap: 0.35rem; }
+.account-form label { font-size: 0.82rem; font-weight: 500; color: var(--text-muted); }
+.account-form .btn-primary { align-self: flex-start; margin-top: 0.3rem; }
+
+/* Notifications (toasts) */
+.admin-toasts { position: fixed; right: 1rem; bottom: 1rem; z-index: 1080; display: flex; flex-direction: column; gap: 0.5rem; }
+.admin-toast {
+  color: #fff; padding: 0.65rem 1rem; border-radius: 0.6rem; font-size: 0.86rem;
+  display: flex; align-items: center; gap: 0.5rem;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.4);
+  opacity: 0; transform: translateY(12px); transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.admin-toast.visible { opacity: 1; transform: translateY(0); }
+/* Couleurs explicites (le Bootstrap local n'inclut pas les classes bg-*),
+   sinon les toasts étaient invisibles en thème clair. */
+.admin-toast.toast-info { background: #0d6efd; color: #fff; }
+.admin-toast.toast-success { background: #198754; color: #fff; }
+.admin-toast.toast-danger { background: #dc3545; color: #fff; }
+.admin-toast.toast-warning { background: #f59e0b; color: #1a1a1a; }
+
+/* Responsive : sidebar repliée en haut sur petit écran */
+@media (max-width: 768px) {
+  .admin-layout { flex-direction: column; height: auto; overflow: visible; }
+  .admin-body { overflow-y: auto; }
+  .admin-sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 0.7rem; }
+  .admin-brand { border: none; margin: 0; padding: 0.2rem 0.5rem; }
+  .admin-nav { flex-direction: row; flex-wrap: wrap; flex-grow: 1; justify-content: center; }
+  .admin-nav-item { width: auto; }
+  .admin-sidebar-foot { border: none; padding: 0; margin: 0; display: flex; align-items: center; gap: 0.5rem; }
+  .admin-userbox { margin: 0; }
+  .admin-main { overflow: visible; }
 }
 
 /* ==========================================================================

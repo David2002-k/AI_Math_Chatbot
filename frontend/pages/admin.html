@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="sombre">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administration · AI Math Chatbot</title>
+
+  <script>
+    if (!localStorage.getItem("token")) { window.location.href = "connexion.html"; }
+  </script>
+
+  <link href="../css/bootstrap.min.css" rel="stylesheet">
+  <link href="../vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="../css/style.css" rel="stylesheet">
+</head>
+<body class="admin-body admin-layout">
+
+  <!-- ░░ SIDEBAR ░░ -->
+  <aside class="admin-sidebar">
+    <div class="admin-brand">
+      <span class="auth-logo" style="width:40px;height:40px;border-radius:11px;font-size:1.2rem;margin:0;"><i class="bi bi-shield-lock-fill"></i></span>
+      <div class="admin-brand-text">
+        <strong>AI Math</strong>
+        <small>Administration</small>
+      </div>
+    </div>
+
+    <nav class="admin-nav">
+      <button class="admin-nav-item active" data-panel="overview"><i class="bi bi-grid-1x2-fill"></i> Vue d'ensemble</button>
+      <button class="admin-nav-item" data-panel="users"><i class="bi bi-people-fill"></i> Utilisateurs <span class="nav-count" id="nav-count-users">0</span></button>
+      <button class="admin-nav-item" data-panel="models"><i class="bi bi-cpu-fill"></i> Modèles IA <span class="nav-count" id="nav-count-models">0</span></button>
+      <button class="admin-nav-item" data-panel="account"><i class="bi bi-person-gear"></i> Mon compte</button>
+    </nav>
+
+    <div class="admin-sidebar-foot">
+      <div class="admin-userbox">
+        <span class="admin-avatar" id="admin-avatar">A</span>
+        <div class="admin-userinfo">
+          <strong id="admin-nom">Administrateur</strong>
+          <small id="admin-bienvenue">superadmin</small>
+        </div>
+      </div>
+      <a href="../index.html" class="admin-foot-link"><i class="bi bi-arrow-left-short"></i> Retour à l'application</a>
+      <button class="admin-foot-link danger" id="btn-logout"><i class="bi bi-box-arrow-right"></i> Déconnexion</button>
+    </div>
+  </aside>
+
+  <!-- ░░ ZONE PRINCIPALE ░░ -->
+  <main class="admin-main">
+    <header class="admin-main-top">
+      <div>
+        <h4 class="m-0 fw-bold text-light" id="page-titre">Vue d'ensemble</h4>
+        <span class="text-secondary small" id="page-soustitre">Statistiques générales de la plateforme</span>
+      </div>
+      <button class="btn btn-outline-light btn-sm rounded-pill px-3" id="btn-refresh"><i class="bi bi-arrow-clockwise"></i> Actualiser</button>
+    </header>
+
+    <div class="admin-content">
+
+      <!-- Panneau : Vue d'ensemble -->
+      <section class="admin-panel active" data-panel="overview">
+        <div class="stats-grid" id="zone-stats"></div>
+      </section>
+
+      <!-- Panneau : Utilisateurs -->
+      <section class="admin-panel" data-panel="users">
+        <div class="admin-card">
+          <div class="admin-card-head">
+            <h6 class="m-0 fw-bold text-light"><i class="bi bi-people-fill me-2"></i>Gestion des utilisateurs</h6>
+            <div class="admin-search">
+              <i class="bi bi-search"></i>
+              <input type="text" id="filtre-users" class="form-control auth-input" placeholder="Rechercher un utilisateur…">
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table admin-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Utilisateur</th><th>Type</th><th>Statut</th><th>Rôle</th><th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-users"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panneau : Modèles IA -->
+      <section class="admin-panel" data-panel="models">
+        <div class="admin-card">
+          <div class="admin-card-head">
+            <h6 class="m-0 fw-bold text-light"><i class="bi bi-cpu-fill me-2"></i>Modèles d'intelligence artificielle</h6>
+            <button class="btn btn-primary btn-sm rounded-pill px-3" id="btn-ajouter-modele"><i class="bi bi-plus-lg"></i> Nouveau modèle</button>
+          </div>
+
+          <form id="form-modele" class="admin-form-ajout d-none">
+            <input class="form-control auth-input" id="m-nom" placeholder="Nom (ex : Pro)" required>
+            <input class="form-control auth-input" id="m-desc" placeholder="Description">
+            <input class="form-control auth-input" id="m-gemini" placeholder="gemini-2.5-flash" required>
+            <button class="btn btn-success" type="submit"><i class="bi bi-check-lg"></i> Créer</button>
+          </form>
+
+          <div class="table-responsive">
+            <table class="table admin-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>ID</th><th>Nom</th><th>Description</th><th>Modèle Gemini</th><th>Actif</th><th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-modeles"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panneau : Mon compte -->
+      <section class="admin-panel" data-panel="account">
+        <div class="admin-card account-card">
+          <div class="admin-card-head">
+            <h6 class="m-0 fw-bold"><i class="bi bi-shield-lock me-2"></i>Changer mon mot de passe</h6>
+          </div>
+          <form id="form-mdp" class="account-form">
+            <div class="champ">
+              <label for="mdp-ancien">Mot de passe actuel</label>
+              <input type="password" id="mdp-ancien" class="form-control auth-input" placeholder="••••••••" autocomplete="current-password" required>
+            </div>
+            <div class="champ">
+              <label for="mdp-nouveau">Nouveau mot de passe</label>
+              <input type="password" id="mdp-nouveau" class="form-control auth-input" placeholder="Au moins 6 caractères" minlength="6" autocomplete="new-password" required>
+            </div>
+            <div class="champ">
+              <label for="mdp-confirme">Confirmer le nouveau mot de passe</label>
+              <input type="password" id="mdp-confirme" class="form-control auth-input" placeholder="••••••••" minlength="6" autocomplete="new-password" required>
+            </div>
+            <button type="submit" class="btn btn-primary rounded-pill px-4"><i class="bi bi-check-lg"></i> Mettre à jour</button>
+          </form>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <div class="admin-toasts" id="admin-toasts"></div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/theme.js"></script>
+  <script src="../js/admin.js"></script>
+</body>
+</html>

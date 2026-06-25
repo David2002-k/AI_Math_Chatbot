@@ -17,7 +17,12 @@ from dependencies import obtenir_utilisateur_courant
 
 router = APIRouter(prefix="/api/fichiers", tags=["Fichiers"])
 
-DOSSIER_UPLOADS = "uploads"
+# Dossier d'upload ancré au répertoire du backend (et non au répertoire courant
+# du processus). Sans cela, si uvicorn est lancé depuis la racine du projet,
+# les fichiers étaient écrits/lus à un autre endroit et Gemini ne « voyait »
+# plus les images : l'upload semblait fonctionner mais restait sans effet.
+_DOSSIER_BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DOSSIER_UPLOADS = os.path.join(_DOSSIER_BACKEND, "uploads")
 EXTENSIONS_AUTORISEES = {".pdf", ".jpg", ".jpeg", ".png", ".docx"}
 TAILLE_MAX_OCTETS = 10 * 1024 * 1024  # 10 Mo par fichier
 MAX_FICHIERS = 5
@@ -103,6 +108,42 @@ async def uploader_fichier(
     db.commit()
     db.refresh(fichier_db)
     return fichier_db
+
+
+@router.delete("/{fichier_id}")
+def supprimer_fichier(
+    fichier_id: int,
+    utilisateur: Utilisateur = Depends(obtenir_utilisateur_courant),
+    db: Session = Depends(get_db)
+):
+    """Retire un fichier joint AVANT l'envoi du message (badge ✕ côté interface).
+
+    On ne peut supprimer qu'un fichier encore « en attente » (non rattaché à un
+    message déjà envoyé) et appartenant à une conversation de l'utilisateur, afin
+    de ne jamais altérer l'historique d'un message existant."""
+    fichier = (
+        db.query(Fichier)
+        .join(Chat, Fichier.chat_id == Chat.id)
+        .filter(
+            Fichier.id == fichier_id,
+            Fichier.message_id == None,
+            Chat.utilisateur_id == utilisateur.id,
+        )
+        .first()
+    )
+    if not fichier:
+        raise HTTPException(status_code=404, detail="Fichier introuvable ou déjà envoyé.")
+
+    # Supprime le fichier physique du disque s'il existe encore.
+    try:
+        if fichier.chemin and os.path.exists(fichier.chemin):
+            os.remove(fichier.chemin)
+    except OSError as e:
+        print(f"Suppression disque impossible pour {fichier.chemin}: {e}")
+
+    db.delete(fichier)
+    db.commit()
+    return {"detail": "Fichier supprimé."}
 
 
 @router.post("/upload", response_model=list[FichierReponse])

@@ -17,7 +17,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
+
+def _verifier_cle_api():
+    """
+    Vérifie que la clé API Gemini est bien configurée et lève une erreur
+    explicite (et lisible par l'utilisateur) si ce n'est pas le cas.
+    """
+    if not GEMINI_API_KEY:
+        raise RuntimeError(
+            "Clé API Gemini manquante. Ajoutez GEMINI_API_KEY dans le fichier "
+            "backend/.env (voir backend/.env.example) puis redémarrez le serveur."
+        )
 
 # Correspondance entre nos niveaux (table modeles_ia) et les modèles Gemini réels
 MODELES_GEMINI = {
@@ -69,6 +83,7 @@ def generer_reponse(question: str, nom_modele: str = "Basique", contexte_fichier
     triée du plus ancien au plus récent, EXCLUANT le message courant.
     Retourne {"texte": ..., "tokens": ...}
     """
+    _verifier_cle_api()
     modele_technique = MODELES_GEMINI.get(nom_modele, "gemini-2.5-flash")
     modele = genai.GenerativeModel(
         model_name=modele_technique,
@@ -101,6 +116,7 @@ def generer_reponse_stream(question: str, nom_modele: str = "Basique", contexte_
     yield chaque fragment de texte au fur et à mesure qu'il arrive (effet de frappe).
     Le dernier élément yield est un tuple ("__usage__", tokens) pour signaler la fin.
     """
+    _verifier_cle_api()
     modele_technique = MODELES_GEMINI.get(nom_modele, "gemini-2.5-flash")
     modele = genai.GenerativeModel(
         model_name=modele_technique,
@@ -132,6 +148,7 @@ def generer_titre_chat(premier_message: str) -> str:
     Génère un titre court (5 mots max) à partir du premier message
     de l'utilisateur — rempli automatiquement dans chats.titre.
     """
+    _verifier_cle_api()
     modele = genai.GenerativeModel("gemini-2.5-flash")
 
     prompt = (

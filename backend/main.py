@@ -29,6 +29,57 @@ from routes.admin import router as admin_router
 # 1. Création automatique des tables dans PostgreSQL au démarrage si elles n'existent pas
 models.Base.metadata.create_all(bind=engine)
 
+
+# 1bis. Initialisation automatique des données essentielles au démarrage :
+#       les modèles IA et un compte administrateur par défaut. Cela évite
+#       l'erreur « Email ou mot de passe incorrect » quand seed.py n'a pas
+#       été lancé manuellement avant le serveur.
+def initialiser_donnees_essentielles():
+    from database import SessionLocal
+    from security import hasher_mot_de_passe
+
+    ADMIN_EMAIL = "admin@mathchatbot.com"
+    ADMIN_MDP = "admin123"
+
+    db = SessionLocal()
+    try:
+        if db.query(models.ModeleIA).count() == 0:
+            db.add_all([
+                models.ModeleIA(nom="Basique", description="Rapide et efficace.", modele_gemini="gemini-2.5-flash"),
+                models.ModeleIA(nom="Pro", description="Plus puissant.", modele_gemini="gemini-2.5-pro"),
+                models.ModeleIA(nom="Max", description="Le plus performant.", modele_gemini="gemini-2.5-pro"),
+            ])
+            db.commit()
+
+        admin_user = db.query(models.Utilisateur).filter(
+            models.Utilisateur.email == ADMIN_EMAIL
+        ).first()
+        if not admin_user:
+            admin_user = models.Utilisateur(
+                nom="Administrateur",
+                email=ADMIN_EMAIL,
+                mot_de_passe=hasher_mot_de_passe(ADMIN_MDP),
+                type="authentifie",
+                est_actif=True,
+            )
+            db.add(admin_user)
+            db.commit()
+            db.refresh(admin_user)
+            db.add(models.Parametre(utilisateur_id=admin_user.id))
+            db.commit()
+
+        if not db.query(models.Admin).filter(models.Admin.utilisateur_id == admin_user.id).first():
+            db.add(models.Admin(utilisateur_id=admin_user.id, role="superadmin"))
+            db.commit()
+            print(f"👑 Compte administrateur prêt → {ADMIN_EMAIL} / {ADMIN_MDP}")
+    except Exception as e:
+        print(f"⚠️  Initialisation des données essentielles ignorée : {e}")
+    finally:
+        db.close()
+
+
+initialiser_donnees_essentielles()
+
 app = FastAPI(
     title="AI Math Chatbot API",
     description="Backend FastAPI avec support PostgreSQL et rendu KaTeX pour les mathématiques",
@@ -76,8 +127,9 @@ def verifier_statut_api():
 async def transcrire_audio(file: UploadFile = File(...)):
     from services.whisper_service import transcrire_audio_en_texte
 
-    os.makedirs("uploads", exist_ok=True)
-    chemin_temp = os.path.join("uploads", f"tmp_{uuid.uuid4().hex}.wav")
+    dossier_uploads = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+    os.makedirs(dossier_uploads, exist_ok=True)
+    chemin_temp = os.path.join(dossier_uploads, f"tmp_{uuid.uuid4().hex}.wav")
     with open(chemin_temp, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
