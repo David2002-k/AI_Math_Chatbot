@@ -1,6 +1,8 @@
 # 🧮 AI Math Chatbot
 
-Agent conversationnel mathématique intelligent — Projet Tutoré, Licence MI 2025/2026.
+Agent conversationnel mathématique intelligent — Projet Tutoré, Licence Mathématiques-Informatique 2025/2026.
+
+> Université Virtuelle du Burkina Faso — NANDZIGA Habibou, MAIGA Boukaré, KABORE Daouda, KABORE Gael, OUEDRAOGO Nouria, OUEDRAOGO Asmao.
 
 ---
 
@@ -8,19 +10,26 @@ Agent conversationnel mathématique intelligent — Projet Tutoré, Licence MI 2
 
 | Composant | Technologie |
 |---|---|
-| Backend | FastAPI (Python) |
-| Base de données | PostgreSQL + SQLAlchemy |
+| Backend | FastAPI (Python 3.9+) |
+| Base de données | PostgreSQL + SQLAlchemy (repli automatique sur SQLite si PostgreSQL est indisponible) |
 | Authentification | bcrypt (mots de passe) + PyJWT (sessions) |
-| IA | Google Gemini 2.5 (Flash / Pro) |
-| Extraction fichiers | pypdf (PDF) + python-docx (DOCX) |
-| Frontend | Bootstrap 5 + KaTeX (HTML/CSS/JS) |
+| IA conversationnelle | Google Gemini 2.5 Flash/Pro (SDK Google Gen AI), réponses en streaming (Server-Sent Events) |
+| Reconnaissance vocale | Web Speech API (navigateur, par défaut) + repli Whisper via Hugging Face Inference API |
+| Extraction fichiers | pypdf (PDF), python-docx (DOCX), OCR multimodal Gemini Vision (images) |
+| Rendu mathématique | KaTeX (LaTeX → formules, côté navigateur) |
+| Frontend | HTML/CSS/JS vanilla + Bootstrap 5 (vendorisé localement, pas de CDN) |
 
 ---
 
-## 🚀 Démarrage (sans Docker)
+## 🚀 Démarrage
 
-### 1. Créer la base PostgreSQL
+### 1. Base de données
 
+PostgreSQL est utilisé par défaut. Si aucune instance n'est joignable, `backend/database.py`
+bascule automatiquement sur une base SQLite locale (`mathchatbot.db`) — aucune action requise
+pour un démarrage rapide en local.
+
+Pour utiliser PostgreSQL :
 ```bash
 psql -U postgres
 ```
@@ -37,8 +46,8 @@ cd backend
 cp .env.example .env
 ```
 
-Éditer `backend/.env` et renseigner `GEMINI_API_KEY` (https://aistudio.google.com)
-et `JWT_SECRET` (une chaîne aléatoire longue).
+Éditer `backend/.env` et renseigner `GEMINI_API_KEY` (https://aistudio.google.com),
+`JWT_SECRET` (chaîne aléatoire longue) et, si besoin, `HF_API_TOKEN` (transcription Whisper de secours).
 
 ### 3. Créer l'environnement Python
 
@@ -51,21 +60,18 @@ venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 ```
 
-### 4. Initialiser la base de données
-
-```bash
-python seed.py
-```
-→ crée les 8 tables + remplit les 3 niveaux IA (Basique, Pro, Max)
-
-### 5. Lancer le backend
+### 4. Lancer le backend
 
 ```bash
 uvicorn main:app --reload --port 8000
 ```
 → documentation interactive : http://localhost:8000/docs
 
-### 6. Lancer le frontend (nouveau terminal)
+Au premier démarrage, `main.py` initialise automatiquement les tables, les modèles IA par
+défaut (Basique / Pro / Max) ainsi qu'un compte administrateur (`admin@mathchatbot.com` /
+`admin123`, à changer dès la première connexion).
+
+### 5. Lancer le frontend (nouveau terminal)
 
 ```bash
 cd frontend
@@ -75,44 +81,55 @@ python -m http.server 3000
 
 ---
 
-## 🗄️ Base de données — 8 tables
+## 🗄️ Base de données
 
 ```
-modeles_ia    → Basique / Pro / Max
+modeles_ia    → modèles IA disponibles (Basique / Pro / Max), activables par l'admin
 utilisateurs  → comptes (anonyme ou authentifié)
+admins        → profils administrateur (rôle : moderateur / superadmin)
 sessions      → tokens JWT de connexion
 parametres    → thème, langue, modèle par défaut (1↔1 avec utilisateurs)
 chats         → conversations (titre auto-généré par l'IA)
 messages      → questions / réponses + réactions like/dislike
 fichiers      → PDF/image/DOCX uploadés, contenu extrait pour Gemini
-recherches    → historique des recherches dans le chat
+recherches    → historique des mots-clés recherchés par utilisateur
 ```
 
 ---
 
-## 🛣️ Routes API
+## 🛣️ Routes API principales
 
 ```
-POST   /api/auth/anonyme           → crée un utilisateur anonyme + token
-POST   /api/auth/inscription        → crée un compte (conserve l'historique anonyme)
-POST   /api/auth/connexion           → connexion par email/mot de passe
-POST   /api/auth/deconnexion          → révoque la session
+POST   /api/auth/anonyme                    → crée un utilisateur anonyme + token
+POST   /api/auth/inscription                 → crée un compte (conserve l'historique anonyme)
+POST   /api/auth/connexion                    → connexion par email/mot de passe
+POST   /api/auth/deconnexion                   → révoque la session
+PATCH  /api/auth/mot-de-passe                   → changer son mot de passe
 
-POST   /api/chats                      → nouvelle conversation
-GET    /api/chats                       → historique (épinglés/récents/archivés)
-GET    /api/chats/recherche?q=...        → recherche par mot-clé
-GET    /api/chats/{id}                    → messages d'une conversation
-PATCH  /api/chats/{id}                     → renommer/épingler/archiver
-DELETE /api/chats/{id}                      → supprimer
+POST   /api/chats                                → nouvelle conversation
+GET    /api/chats                                 → historique
+GET    /api/chats/recherche?q=...                  → recherche (titre + contenu des messages)
+GET    /api/chats/{id}                              → messages d'une conversation
+PATCH  /api/chats/{id}                               → renommer
+DELETE /api/chats/{id}                                → supprimer (et ses fichiers associés)
 
-POST   /api/messages                          → envoyer message → réponse Gemini
-PATCH  /api/messages/{id}/reaction              → like/dislike
+POST   /api/messages                                    → envoyer un message → réponse Gemini
+POST   /api/messages/stream                              → envoi en streaming (effet de frappe)
+PATCH  /api/messages/{id}/reaction                        → like/dislike
 
-POST   /api/fichiers/upload?message_id=...       → upload PDF/image/DOCX (max 5)
+POST   /api/fichiers/upload                                → upload PDF/image/DOCX (max 5, 10 Mo chacun)
+DELETE /api/fichiers/{id}                                    → supprimer un fichier
 
-GET    /api/parametres                              → mes préférences
-PATCH  /api/parametres                               → modifier thème/langue/modèle
-GET    /api/modeles                                   → liste Basique/Pro/Max
+GET    /api/parametres / PATCH /api/parametres                → préférences utilisateur
+GET    /api/modeles                                             → modèles IA actifs
+
+GET    /api/admin/verifier                                       → l'utilisateur courant est-il admin ?
+GET    /api/admin/stats                                           → statistiques globales
+GET    /api/admin/utilisateurs                                     → liste des comptes
+PATCH  /api/admin/utilisateurs/{id}/statut                           → activer/désactiver un compte
+PATCH  /api/admin/utilisateurs/{id}/role                              → promouvoir/rétrograder (superadmin)
+DELETE /api/admin/utilisateurs/{id}                                     → supprimer un compte
+GET/POST/PATCH/DELETE /api/admin/modeles                                 → gestion des modèles IA
 ```
 
 ---
@@ -120,39 +137,45 @@ GET    /api/modeles                                   → liste Basique/Pro/Max
 ## 📁 Structure du projet
 
 ```
-ai-math-chatbot/
+AI_Math_Chatbot/
 ├── backend/
-│   ├── main.py            → serveur FastAPI + branchement des routes
-│   ├── models.py           → 8 tables SQLAlchemy
-│   ├── database.py          → connexion PostgreSQL
-│   ├── schemas.py             → validation Pydantic
-│   ├── security.py             → bcrypt + JWT
-│   ├── dependencies.py          → identification utilisateur (auth/anonyme)
-│   ├── gemini_service.py         → appels à l'API Gemini
-│   ├── seed.py                    → données initiales (modèles IA)
+│   ├── main.py                 → serveur FastAPI, init des données par défaut
+│   ├── models.py                → tables SQLAlchemy
+│   ├── database.py               → connexion PostgreSQL + repli SQLite
+│   ├── schemas.py                  → validation Pydantic
+│   ├── security.py                  → bcrypt + JWT
+│   ├── dependencies.py               → utilisateur courant / admin courant
+│   ├── services/
+│   │   ├── gemini_service.py           → appels à l'API Gemini (streaming inclus)
+│   │   └── whisper_service.py            → transcription vocale de secours
 │   ├── routes/
-│   │   ├── auth.py
-│   │   ├── chats.py
-│   │   ├── messages.py
-│   │   ├── fichiers.py
-│   │   └── parametres.py
-│   ├── uploads/                    → fichiers uploadés par les utilisateurs
-│   ├── requirements.txt
-│   └── .env
+│   │   ├── auth.py, chats.py, messages.py, fichiers.py, parametres.py, recherche.py, admin.py
+│   ├── uploads/                          → fichiers uploadés par les utilisateurs
+│   └── requirements.txt
 └── frontend/
-    ├── index.html              → interface chat
-    ├── css/style.css            → thème clair/sombre
-    ├── js/chat.js                → connecté aux routes API ci-dessus
-    └── pages/
-        ├── connexion.html
-        ├── inscription.html
-        └── parametres.html
+    ├── index.html                  → interface de chat
+    ├── css/style.css                 → thèmes clair/sombre
+    ├── js/
+    │   ├── chat.js                     → envoi de messages, upload, streaming
+    │   ├── audio.js                      → reconnaissance vocale (micro)
+    │   ├── auth.js, theme.js, api.js, admin.js
+    ├── pages/
+    │   ├── connexion.html, inscription.html, parametres.html, admin.html
+    └── vendor/                            → Bootstrap, Bootstrap Icons, KaTeX (locaux, sans CDN)
 ```
+
+---
+
+## 👤 Rôles & permissions
+
+- **Utilisateur** : chat, upload de fichiers, historique, reconnaissance vocale, gestion de son propre compte.
+- **Modérateur** (`admin.role = moderateur`) : tableau de bord, gestion des utilisateurs standards, gestion des modèles IA — ne peut pas agir sur un autre administrateur ni sur lui-même.
+- **Superadmin** : en plus des droits du modérateur, peut promouvoir/rétrograder des modérateurs. Ne peut être ni désactivé ni supprimé.
 
 ---
 
 ## 🛣️ Prochaines étapes
 
-- [ ] Reconnaissance vocale (Whisper) — bouton micro déjà présent côté frontend
-- [ ] Streaming des réponses Gemini (effet de frappe en temps réel)
-- [ ] Export PDF de l'historique
+- [ ] Export PDF de l'historique d'une conversation
+- [ ] Cache des réponses fréquentes pour réduire la consommation de quota Gemini
+- [ ] Notifications en temps réel (WebSocket) pour les actions d'administration
