@@ -2,7 +2,7 @@
 
 Agent conversationnel mathématique intelligent — Projet Tutoré, Licence Mathématiques-Informatique 2025/2026.
 
-> Université Virtuelle du Burkina Faso — NANDZIGA Habibou, MAIGA Boukaré, KABORE Daouda, KABORE Gael, OUEDRAOGO Nouria, OUEDRAOGO Asmao.
+> Université Virtuelle du Burkina Faso —   
 
 ---
 
