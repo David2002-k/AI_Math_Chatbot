@@ -2,7 +2,7 @@
 
 Agent conversationnel mathématique intelligent — Projet Tutoré, Licence Mathématiques-Informatique 2025/2026.
 
-> Université Virtuelle du Burkina Faso — NANDZIGA Habibou, MAIGA Boukaré, KABORE Daouda, KABORE Gael, OUEDRAOGO Nouria, OUEDRAOGO Asmao.
+> Université Virtuelle du Burkina Faso .
 
 ---
 
@@ -63,9 +63,15 @@ pip install -r requirements.txt
 ### 4. Lancer le backend
 
 ```bash
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8000 --reload-exclude "uploads/*" --reload-exclude "*.db"
 ```
 → documentation interactive : http://localhost:8000/docs
+
+> ⚠️ Les flags `--reload-exclude` sont indispensables : sans eux, `--reload` redémarre
+> le serveur à chaque fichier joint par un utilisateur (écrit dans `backend/uploads/`),
+> ce qui coupe la connexion en cours — symptôme observé : l'upload « éjecte » l'utilisateur
+> du chat. `main.py` applique déjà ces exclusions automatiquement si tu lances
+> `python main.py` au lieu de la commande `uvicorn` ci-dessus.
 
 Au premier démarrage, `main.py` initialise automatiquement les tables, les modèles IA par
 défaut (Basique / Pro / Max) ainsi qu'un compte administrateur (`admin@mathchatbot.com` /
@@ -78,6 +84,11 @@ cd frontend
 python -m http.server 3000
 ```
 → interface : http://localhost:3000
+
+> ⚠️ Ne pas utiliser l'extension VS Code **Live Server** pour le frontend : elle surveille
+> tout le dossier ouvert dans l'éditeur, y compris `backend/uploads/`, et recharge donc
+> le navigateur dès qu'un fichier est uploadé dans le chat — ce qui ramène brutalement
+> à l'écran d'accueil. `python -m http.server` n'a pas ce comportement.
 
 ---
 

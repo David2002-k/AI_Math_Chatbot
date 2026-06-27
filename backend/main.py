@@ -92,6 +92,7 @@ origins = [
     "http://localhost:5500",
     "http://127.0.0.1:3000",
     "http://localhost:3000",
+    "https://mathchatbot-frontend.onrender.com",
     "null",
 ]
 
@@ -142,4 +143,18 @@ async def transcrire_audio(file: UploadFile = File(...)):
     return {"text": texte}
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    # reload_excludes est INDISPENSABLE : sans lui, --reload surveille tout le
+    # dossier backend/, y compris backend/uploads/. Chaque fichier joint dans le
+    # chat y est physiquement écrit (routes/fichiers.py) ; uvicorn détecte alors
+    # un changement de fichier et redémarre le worker ASGI en plein milieu de la
+    # requête — ce qui coupe net la connexion (et le flux SSE /api/messages/stream
+    # s'il est ouvert), donnant l'impression que l'appli "quitte le chat" dès
+    # qu'on importe un fichier. La base SQLite de repli est exclue pour la même
+    # raison (écrite à chaque message).
+    uvicorn.run(
+        "main:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=True,
+        reload_excludes=["uploads/*", "*.db", "*.db-journal"],
+    )

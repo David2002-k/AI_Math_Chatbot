@@ -20,6 +20,25 @@ document.addEventListener("DOMContentLoaded", () => {
     let selectedFiles = [];
     let currentChatId = null; // Stocke l'ID de la conversation active
 
+    // Retire l'écran d'accueil s'il est encore affiché. On le recherche par id
+    // à chaque appel (et non via une référence figée), car le bouton « Nouvelle
+    // conversation » le recrée : une référence capturée une seule fois devient
+    // obsolète et n'enlèverait pas le nouvel écran.
+    function quitterAccueil() {
+        const acc = document.getElementById("welcome-message");
+        if (acc) acc.remove();
+    }
+
+    // Ouvre une discussion vide dans la zone principale (utilisé quand on joint
+    // un fichier alors qu'aucune conversation n'est ouverte) : on sort de
+    // l'accueil et on prépare la zone, sans quitter la discussion.
+    function ouvrirDiscussionVide(titre = "Nouvelle discussion") {
+        quitterAccueil();
+        const titreEl = document.getElementById("current-chat-title");
+        if (titreEl) titreEl.innerText = titre;
+        zoneMessages.innerHTML = "";
+    }
+
     // ─── Rendu KaTeX sécurisé : ne casse jamais l'affichage du texte si KaTeX est indisponible ───
     function rendreMaths(element) {
         if (typeof renderMathInElement !== "function") {
@@ -215,16 +234,28 @@ document.addEventListener("DOMContentLoaded", () => {
     // Supprime une conversation (DELETE /api/chats/{id})
     async function supprimerChat(chatId) {
         try {
-            await fetch(`${API_URL}/api/chats/${chatId}`, {
+            const response = await fetch(`${API_URL}/api/chats/${chatId}`, {
                 method: "DELETE",
                 headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
             });
+
+            if (response.status === 401) { redirigerVersConnexion(); return; }
+
+            // On vérifie réellement le succès : sans ça, une erreur serveur
+            // (ex. 500) passait inaperçue et la conversation « refusait » de partir.
+            if (!response.ok) {
+                let detail = `Erreur serveur (${response.status})`;
+                try { const e = await response.json(); if (e.detail) detail = e.detail; } catch (_) {}
+                alert(`❌ Suppression impossible : ${detail}`);
+                return;
+            }
+
             if (chatId === currentChatId && btnNouveauChat) {
                 btnNouveauChat.click();
             }
             chargerHistoriqueChats();
         } catch (err) {
-            alert("❌ Impossible de supprimer la conversation.");
+            alert("❌ Impossible de joindre le serveur pour supprimer la conversation.");
         }
     }
 
@@ -272,7 +303,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const text = inputMessage.value.trim();
         if (!text && selectedFiles.length === 0) return;
 
-        if (welcomeMessage) welcomeMessage.remove();
+        quitterAccueil();
 
         // Si aucun salon n'est ouvert, on en crée un par défaut en BDD de manière transparente
         if (!currentChatId) {
@@ -299,11 +330,27 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        // Afficher le message utilisateur
-        let userContent = text;
+        // Envoi réel des fichiers joints, maintenant qu'on dispose d'un chat_id.
+        // (L'ajout était purement local ; c'est ici qu'on les transmet au serveur,
+        //  qui les rattachera automatiquement au message envoyé juste après.)
         if (selectedFiles.length > 0) {
-            userContent += `<br><small class="text-info">📎 ${selectedFiles.length} fichier(s) joint(s)</small>`;
+            for (const item of selectedFiles) {
+                const res = await uploadFileBackend(item.file, currentChatId);
+                if (res && res.__unauthorized) { redirigerVersConnexion(); return; }
+            }
         }
+
+        // Afficher le message utilisateur, avec les fichiers joints sous forme de
+        // pastilles (nom + icône), façon Claude.
+        let userContent = "";
+        if (selectedFiles.length > 0) {
+            const puces = selectedFiles.map(item => {
+                const nom = (item.file && item.file.name) ? item.file.name : "fichier";
+                return `<span class="msg-fichier"><i class="bi bi-paperclip"></i> ${nom.replace(/[&<>"]/g, "")}</span>`;
+            }).join("");
+            userContent += `<div class="msg-fichiers">${puces}</div>`;
+        }
+        if (text) userContent += `<div>${text.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]))}</div>`;
 
         appendMessage(userContent, "user");
         inputMessage.value = "";
@@ -458,101 +505,42 @@ document.addEventListener("DOMContentLoaded", () => {
     // sélection, avec un indicateur visuel pendant le traitement (spinner → coché).
     if (btnUpload && inputFichier) {
         btnUpload.addEventListener("click", () => inputFichier.click());
-        inputFichier.addEventListener("change", async (e) => {
+        // Joindre un fichier est une action PUREMENT LOCALE : on ne crée aucune
+        // conversation et on n'appelle pas le serveur ici. Les fichiers ne sont
+        // réellement envoyés qu'au moment de l'envoi du message (voir gererEnvoi).
+        // → impossible de « quitter le chat » ou de recharger la page à l'ajout.
+        inputFichier.addEventListener("change", (e) => {
             const fichiers = Array.from(e.target.files);
-            inputFichier.value = ""; // permet de re-sélectionner le même fichier plus tard
+            inputFichier.value = ""; // permet de re-sélectionner le même fichier
 
-            // Crée un salon de discussion silencieusement si aucun n'est encore ouvert.
-            // Si le token est déjà périmé, le backend renvoie 401 ICI : on redirige
-            // donc AVANT de créer le moindre fichier (plus de conversation fantôme).
-            if (!currentChatId) {
-                try {
-                    const response = await fetch(`${API_URL}/api/chats`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${localStorage.getItem("token")}`
-                        },
-                        body: JSON.stringify({ titre: "Nouvelle discussion" })
-                    });
-                    if (response.status === 401) {
-                        redirigerVersConnexion();
-                        return;
-                    }
-                    const nouveauChat = await response.json();
-                    currentChatId = nouveauChat.id;
-                    chargerHistoriqueChats();
-                } catch (err) {
-                    alert("❌ Impossible de créer la conversation pour le fichier.");
-                    return;
-                }
-            }
-
-            // PASSE 1 — Affichage INSTANTANÉ des aperçus (miniature pour les
-            // images via URL.createObjectURL, icône sinon) avant tout réseau.
-            const enAttente = fichiers.map((file) => {
+            fichiers.forEach((file) => {
                 const estImage = file.type.startsWith("image/");
+                const objectUrl = estImage ? URL.createObjectURL(file) : null;
+                const vignetteHTML = estImage
+                    ? `<img src="${objectUrl}" class="apercu-vignette" alt="">`
+                    : `<span class="apercu-vignette d-flex align-items-center justify-content-center"><i class="bi bi-file-earmark-text"></i></span>`;
+
                 const badge = document.createElement("span");
                 badge.className = "apercu-fichier badge d-flex align-items-center gap-2 p-1 pe-2";
-
-                let vignetteHTML;
-                let objectUrl = null;
-                if (estImage) {
-                    objectUrl = URL.createObjectURL(file);
-                    vignetteHTML = `<img src="${objectUrl}" class="apercu-vignette" alt="">`;
-                } else {
-                    vignetteHTML = `<span class="apercu-vignette d-flex align-items-center justify-content-center"><i class="bi bi-file-earmark-text"></i></span>`;
-                }
-
-                // Voile + spinner par-dessus la vignette pendant l'upload.
                 badge.innerHTML = `
-                    <span class="apercu-media">
-                        ${vignetteHTML}
-                        <span class="apercu-spinner"><span class="spinner-border spinner-border-sm" role="status"></span></span>
-                    </span>
-                    <span class="apercu-nom">${file.name}</span>`;
+                    <span class="apercu-media">${vignetteHTML}</span>
+                    <span class="apercu-nom">${file.name.replace(/[&<>"]/g, "")}</span>`;
+
+                const entree = { file, objectUrl };
+                selectedFiles.push(entree);
+
+                const btnRetirer = document.createElement("button");
+                btnRetirer.type = "button";
+                btnRetirer.className = "btn-close btn-close-white apercu-retirer";
+                btnRetirer.setAttribute("aria-label", "Retirer le fichier");
+                btnRetirer.addEventListener("click", () => {
+                    selectedFiles = selectedFiles.filter(it => it !== entree);
+                    if (objectUrl) URL.revokeObjectURL(objectUrl);
+                    badge.remove();
+                });
+                badge.appendChild(btnRetirer);
                 apercuFichiers.appendChild(badge);
-                return { file, badge, objectUrl };
             });
-
-            // PASSE 2 — Upload réel en arrière-plan, en parallèle.
-            await Promise.all(enAttente.map(async ({ file, badge, objectUrl }) => {
-                const resultat = await uploadFileBackend(file, currentChatId);
-
-                if (resultat && resultat.__unauthorized) {
-                    redirigerVersConnexion();
-                    return;
-                }
-
-                const spinner = badge.querySelector(".apercu-spinner");
-                if (spinner) spinner.remove();
-
-                if (resultat) {
-                    selectedFiles.push({ file, id: resultat.id });
-
-                    const btnRetirer = document.createElement("button");
-                    btnRetirer.type = "button";
-                    btnRetirer.className = "btn-close btn-close-white apercu-retirer";
-                    btnRetirer.setAttribute("aria-label", "Retirer le fichier");
-                    btnRetirer.addEventListener("click", async () => {
-                        btnRetirer.disabled = true;
-                        const ok = await deleteFileBackend(resultat.id);
-                        if (ok) {
-                            selectedFiles = selectedFiles.filter(item => item.id !== resultat.id);
-                            if (objectUrl) URL.revokeObjectURL(objectUrl);
-                            badge.remove();
-                        } else {
-                            btnRetirer.disabled = false;
-                            alert("❌ Impossible de retirer ce fichier.");
-                        }
-                    });
-                    badge.appendChild(btnRetirer);
-                } else {
-                    badge.classList.add("apercu-erreur");
-                    const media = badge.querySelector(".apercu-media");
-                    if (media) media.innerHTML = `<span class="apercu-vignette d-flex align-items-center justify-content-center"><i class="bi bi-exclamation-triangle text-danger"></i></span>`;
-                }
-            }));
         });
     }
 
