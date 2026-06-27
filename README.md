@@ -2,7 +2,11 @@
 
 Agent conversationnel mathématique intelligent — Projet Tutoré, Licence Mathématiques-Informatique 2025/2026.
 
+<<<<<<< HEAD
 > Université Virtuelle du Burkina Faso .
+=======
+> Université Virtuelle du Burkina Faso —   
+>>>>>>> c67fc752da620999a4b3d2712971f28e51bd6354
 
 ---
 
